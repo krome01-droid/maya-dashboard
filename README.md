@@ -80,7 +80,12 @@ Relevé dans la base, pas supposé :
 - 10 formations au catalogue, 7 articles publiés.
 - Palier d'autonomie : `publish_gated`, 1 post/jour, 8/semaine, **Facebook
   seul**, fenêtre calme 22 h–7 h. Posé par Armel le 08/08 ; LOU et STAN ont reçu
-  Instagram le 11/08, pas MAYA. À revoir si Instagram est branché pour la marque.
+  Instagram le 11/08, pas MAYA.
+- **Le canal Facebook est déjà branché** : `postiz_integrations` porte
+  l'intégration réelle `cms9jpa6w0002o49e0estlpru` (« Réseau moto-écoles
+  Inri's · Facebook »). MAYA est donc publiable dès que ses secrets sont posés,
+  sans attendre quoi que ce soit côté Postiz. Instagram et LinkedIn restent des
+  placeholders, désormais **inactifs** (voir ci-dessous).
 
 ## Ce qui reste à faire avant la mise en service
 
@@ -88,8 +93,25 @@ Relevé dans la base, pas supposé :
    `ANTHROPIC_API_KEY`, `CRON_SECRET`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`.
 2. Enregistrer `agent_cron_secret_maya` dans le Vault Supabase de CROME OS :
    `select vault.create_secret('<secret>', 'agent_cron_secret_maya', 'CRON_SECRET du dashboard MAYA');`
-3. Remplacer les `REPLACE-moto-*` de `postiz_integrations` par les vrais
-   `integration_id`, une fois les comptes connectés dans Postiz.
-4. Créer le sous-domaine `agent.moto-ecole-inris.fr` et son vhost vers le port 3849.
-5. Éprouver la chaîne sans rien rendre public :
+3. Créer le sous-domaine `agent.moto-ecole-inris.fr` et son vhost vers le port 3849.
+4. Éprouver la chaîne sans rien rendre public :
    `GET /admin-maya/api/cron/social-auto?review_only=1`.
+
+Facebook étant déjà branché, rien n'est bloqué côté Postiz.
+
+## Instagram et LinkedIn : ne pas armer le palier avant l'identifiant
+
+`REPLACE-moto-ig` et `REPLACE-moto-in` ont été passés à `active = false` le
+2026-08-12, comme les sept autres placeholders de l'écosystème.
+
+`publish-to-postiz` retient les intégrations par
+`(project_slug, active, platform ∈ target_platforms)` puis envoie **un seul**
+appel `createPosts` contenant toutes celles retenues. Un `integration_id`
+inexistant y fait donc échouer le **post entier**, Facebook compris. Autoriser
+Instagram pour MAYA dans `agent_autonomy` alors que `REPLACE-moto-ig` était
+actif aurait cassé toutes ses publications d'un coup — c'est précisément ce qui
+s'est produit chez LOU et STAN le 11/08.
+
+Remettre `active = true` **en même temps** que l'on colle le vrai identifiant,
+jamais avant. Et vérifier au passage les réglages exigés par la plateforme dans
+`REGLAGES_PAR_PLATEFORME` (Instagram impose `post_type`).
