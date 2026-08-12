@@ -1,0 +1,64 @@
+# ============================================
+# MAYA Dashboard — Docker Compose (Hostinger VPS)
+# Image pré-buildée sur GHCR via GitHub Actions
+# ============================================
+
+services:
+  maya-dashboard:
+    image: ghcr.io/krome01-droid/maya-dashboard:latest
+    pull_policy: always
+    container_name: maya-dashboard
+    restart: unless-stopped
+    ports:
+      - "3849:3849"
+    environment:
+      - NODE_ENV=production
+      - PORT=3849
+      - HOSTNAME=0.0.0.0
+
+      # NextAuth
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+
+      # Compte de service local (accès sans Supabase Auth)
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+
+      # Base de la marketplace (lecture service_role)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+
+      # CROME OS — hub de publication et studio d'images
+      - CROME_INGEST_URL=${CROME_INGEST_URL}
+      - CROME_INGEST_SECRET=${CROME_INGEST_SECRET}
+
+      # IA
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+      # Brief quotidien
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - BRIEF_TO=${BRIEF_TO}
+      - BRIEF_FROM=${BRIEF_FROM}
+    healthcheck:
+      test:
+        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider",
+         "http://localhost:3849/admin-maya/api/auth/session"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  maya-cron:
+    build: ./cron
+    container_name: maya-cron
+    restart: unless-stopped
+    depends_on:
+      maya-dashboard:
+        condition: service_healthy
+    environment:
+      - TZ=Europe/Paris
+      - CRON_SECRET=${CRON_SECRET}
+      # Réseau interne Compose : le cron ne sort pas sur Internet pour
+      # rappeler un service qui tourne dans le conteneur d'à côté.
+      - MAYA_BASE_URL=http://maya-dashboard:3849/admin-maya

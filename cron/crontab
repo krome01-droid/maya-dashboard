@@ -1,0 +1,12 @@
+# MAYA — tâches planifiées, heures locales Paris (Europe/Paris)
+# Format : minute heure jour-du-mois mois jour-de-semaine commande
+#
+# Décalées d'une heure par rapport à LOU et ANGÈLE (7h/9h) : les agents
+# partagent le hub CROME OS et son studio d'images, et trois soumissions
+# simultanées se disputeraient le même quota de génération.
+
+# Brief quotidien — tous les jours à 8h
+0 8 * * * /usr/local/bin/call-cron.sh daily-brief
+
+# Publication sociale — mardi, jeudi et samedi à 10h
+0 10 * * 2,4,6 /usr/local/bin/call-cron.sh social-auto
