@@ -2,7 +2,7 @@
 set -e
 
 : "${CRON_SECRET:?CRON_SECRET is required}"
-: "${MAYA_BASE_URL:=http://127.0.0.1:3849/admin-maya}"
+: "${MAYA_BASE_URL:=http://127.0.0.1:3850/admin-maya}"
 
 # Wrapper : appelle les endpoints cron de MAYA avec son en-tête d'authentification
 cat > /usr/local/bin/call-cron.sh << EOF

@@ -39,7 +39,7 @@ des réservations payées.
 ```bash
 npm install
 cp .env.example .env.local   # puis renseigner
-npm run dev -- --port 3849
+npm run dev -- --port 3850
 ```
 
 Sans `SUPABASE_*`, l'app démarre et chaque page affiche quelle variable manque
@@ -63,10 +63,29 @@ capable de déclencher des publications.
 
 ## Déploiement
 
-Port **3849** (LOU 3847, STAN/IRIS/ANGÈLE 3848), basePath `/admin-maya`,
-image GHCR `ghcr.io/krome01-droid/maya-dashboard`, VPS Hostinger via
-`.github/workflows/deploy.yml`. Le conteneur `maya-cron` joint le dashboard par
-le réseau interne Compose, sans sortir sur Internet.
+Port hôte **3850**, basePath `/admin-maya`, image GHCR
+`ghcr.io/krome01-droid/maya-dashboard`, VPS Hostinger (`srv1623854`,
+31.97.157.174) via `.github/workflows/deploy.yml`. Le conteneur `maya-cron`
+joint le dashboard par le réseau interne Compose, sans sortir sur Internet.
+
+**Le port 3850 n'est pas arbitraire.** Sur ce VPS, 3848 est pris par
+`iris-dashboard`, 3849 par `angele-dashboard` (mappé sur son 3848 interne), 4007
+par `crome.orgapro.io`, et 80/443 par Traefik. MAYA avait d'abord été numérotée
+3849 : c'était une collision directe avec ANGÈLE. Vérifier `docker ps` avant
+d'ajouter un agent.
+
+### Traefik : la route ne se déclare pas ici
+
+Il n'y a **pas** d'étiquette Traefik dans ce `docker-compose.yml`, et c'est
+volontaire : le Traefik du projet `iris-dashboard` détient les ports 80/443 et
+le certificat Let's Encrypt pour tout le VPS. Les routes des autres agents sont
+donc déclarées chez lui, dans `configs.traefik_dynamic.content` — c'est déjà le
+cas pour `angele.inris-formations.com`.
+
+Pour exposer MAYA, ajouter dans ce fichier un routeur
+`Host(\`agent.moto-ecole-inris.fr\`)` vers `http://host.docker.internal:3850`,
+puis redéployer `iris-dashboard`. Et faire pointer le DNS de
+`agent.moto-ecole-inris.fr` sur 31.97.157.174.
 
 ## État à la création (2026-08-12)
 
@@ -93,8 +112,13 @@ Relevé dans la base, pas supposé :
    `ANTHROPIC_API_KEY`, `CRON_SECRET`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`.
 2. Enregistrer `agent_cron_secret_maya` dans le Vault Supabase de CROME OS :
    `select vault.create_secret('<secret>', 'agent_cron_secret_maya', 'CRON_SECRET du dashboard MAYA');`
-3. Créer le sous-domaine `agent.moto-ecole-inris.fr` et son vhost vers le port 3849.
-4. Éprouver la chaîne sans rien rendre public :
+3. Poser les deux secrets d'infrastructure du dépôt : `HOSTINGER_API_KEY` et
+   `GH_PAT`. Ce dernier est **obligatoire** ici — l'action Hostinger le réclame
+   pour les dépôts privés, et `maya-dashboard` en est un. Il lui faut au moins
+   `read:packages` pour tirer l'image GHCR.
+4. Faire pointer `agent.moto-ecole-inris.fr` sur 31.97.157.174, puis déclarer la
+   route dans le Traefik de `iris-dashboard` (voir « Déploiement » ci-dessus).
+5. Éprouver la chaîne sans rien rendre public :
    `GET /admin-maya/api/cron/social-auto?review_only=1`.
 
 Facebook étant déjà branché, rien n'est bloqué côté Postiz.

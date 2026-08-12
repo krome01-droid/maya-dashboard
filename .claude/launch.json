@@ -4,8 +4,8 @@
     {
       "name": "maya-dashboard",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "3849"],
-      "port": 3849
+      "runtimeArgs": ["run", "dev", "--", "--port", "3850"],
+      "port": 3850
     }
   ]
 }

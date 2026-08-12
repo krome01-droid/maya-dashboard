@@ -24,10 +24,10 @@ COPY --from=base /app/.next/static ./.next/static
 COPY --from=base /app/public ./public
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3849/admin-maya/api/auth/session || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3850/admin-maya/api/auth/session || exit 1
 
-EXPOSE 3849
-ENV PORT=3849
+EXPOSE 3850
+ENV PORT=3850
 ENV HOSTNAME=0.0.0.0
 
 CMD ["node", "server.js"]

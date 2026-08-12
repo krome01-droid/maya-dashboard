@@ -58,7 +58,7 @@ jobs:
           docker-compose-path: docker-compose.yml
           environment-variables: |
             NODE_ENV=production
-            PORT=3849
+            PORT=3850
             HOSTNAME=0.0.0.0
             NEXTAUTH_URL=https://agent.moto-ecole-inris.fr/admin-maya
             NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
