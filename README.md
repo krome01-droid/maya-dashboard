@@ -68,6 +68,13 @@ Port hôte **3850**, basePath `/admin-maya`, image GHCR
 31.97.157.174) via `.github/workflows/deploy.yml`. Le conteneur `maya-cron`
 joint le dashboard par le réseau interne Compose, sans sortir sur Internet.
 
+**Les deux services tirent une image, aucun ne se construit sur place.**
+L'action Hostinger n'envoie à l'API que l'URL du `docker-compose.yml` ; le VPS
+ne clone pas le dépôt. Un `build: ./cron` n'a donc aucun contexte et fait
+échouer la création du projet **en entier**, sans message : l'API répond
+« deployment initiated », et rien n'apparaît jamais dans `docker compose ls`.
+C'est ce qui a bloqué la première mise en service.
+
 **Le port 3850 n'est pas arbitraire.** Sur ce VPS, 3848 est pris par
 `iris-dashboard`, 3849 par `angele-dashboard` (mappé sur son 3848 interne), 4007
 par `crome.orgapro.io`, et 80/443 par Traefik. MAYA avait d'abord été numérotée
@@ -112,10 +119,11 @@ Relevé dans la base, pas supposé :
    `ANTHROPIC_API_KEY`, `CRON_SECRET`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`.
 2. Enregistrer `agent_cron_secret_maya` dans le Vault Supabase de CROME OS :
    `select vault.create_secret('<secret>', 'agent_cron_secret_maya', 'CRON_SECRET du dashboard MAYA');`
-3. Poser les deux secrets d'infrastructure du dépôt : `HOSTINGER_API_KEY` et
-   `GH_PAT`. Ce dernier est **obligatoire** ici — l'action Hostinger le réclame
-   pour les dépôts privés, et `maya-dashboard` en est un. Il lui faut au moins
-   `read:packages` pour tirer l'image GHCR.
+3. Poser `HOSTINGER_API_KEY`. `GH_PAT` n'est **pas** nécessaire tant que le
+   dépôt est public : l'action ne s'en sert que pour authentifier la
+   récupération du `docker-compose.yml` sur un dépôt privé. Si le dépôt
+   redevient privé, il lui faudra la portée `repo` — et ce sera un PAT
+   **classique**, GHCR et cette action refusant les jetons à portée fine.
 4. Faire pointer `agent.moto-ecole-inris.fr` sur 31.97.157.174, puis déclarer la
    route dans le Traefik de `iris-dashboard` (voir « Déploiement » ci-dessus).
 5. Éprouver la chaîne sans rien rendre public :

@@ -49,8 +49,12 @@ services:
       retries: 3
       start_period: 30s
 
+  # Image pré-construite, pas `build: ./cron` : Hostinger ne récupère que ce
+  # fichier, pas le dépôt. Un contexte de build local n'existe pas sur le VPS
+  # et fait échouer la création du projet entier, sans message.
   maya-cron:
-    build: ./cron
+    image: ghcr.io/krome01-droid/maya-cron:latest
+    pull_policy: always
     container_name: maya-cron
     restart: unless-stopped
     depends_on:
