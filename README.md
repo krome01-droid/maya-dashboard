@@ -64,9 +64,15 @@ capable de déclencher des publications.
 ## Déploiement
 
 Port hôte **3850**, basePath `/admin-maya`, image GHCR
-`ghcr.io/krome01-droid/maya-dashboard`, VPS Hostinger (`srv1623854`,
-31.97.157.174) via `.github/workflows/deploy.yml`. Le conteneur `maya-cron`
-joint le dashboard par le réseau interne Compose, sans sortir sur Internet.
+`ghcr.io/krome01-droid/maya-dashboard`, via `.github/workflows/deploy.yml`. Le
+conteneur `maya-cron` joint le dashboard par le réseau interne Compose, sans
+sortir sur Internet.
+
+**Le VPS est `Agents.ia` — VM Hostinger 1463957, 187.124.34.111.** C'est celui
+de LOU, STAN, Hermes et OpenClaw, pas celui d'IRIS et ANGÈLE (`srv1623854`,
+31.97.157.174). Les deux machines cohabitent dans le même compte Hostinger et
+n'ont aucun conteneur en commun : chercher `maya` sur `srv1623854` ne renvoie
+rien, et c'est normal. `HOSTINGER_VM_ID` fait foi.
 
 **Les deux services tirent une image, aucun ne se construit sur place.**
 L'action Hostinger n'envoie à l'API que l'URL du `docker-compose.yml` ; le VPS
@@ -75,24 +81,37 @@ ne clone pas le dépôt. Un `build: ./cron` n'a donc aucun contexte et fait
 « deployment initiated », et rien n'apparaît jamais dans `docker compose ls`.
 C'est ce qui a bloqué la première mise en service.
 
-**Le port 3850 n'est pas arbitraire.** Sur ce VPS, 3848 est pris par
-`iris-dashboard`, 3849 par `angele-dashboard` (mappé sur son 3848 interne), 4007
-par `crome.orgapro.io`, et 80/443 par Traefik. MAYA avait d'abord été numérotée
-3849 : c'était une collision directe avec ANGÈLE. Vérifier `docker ps` avant
-d'ajouter un agent.
+**Le port 3850 n'est pas arbitraire.** Sur `Agents.ia` : 3847 `lou-dashboard`,
+3848 `stan-dashboard`, 3001 `open-webui`, 32843 Hermes, 50888 OpenClaw, 32768
+Ollama, et 80/443 Traefik. 3849 est libre, mais MAYA est déployée sur 3850 et
+n'a aucune raison de bouger. Vérifier `docker ps` avant d'ajouter un agent —
+le premier numéro choisi ici (3849) l'avait été d'après la liste de
+`srv1623854`, qui n'est pas la bonne machine.
 
 ### Traefik : la route ne se déclare pas ici
 
 Il n'y a **pas** d'étiquette Traefik dans ce `docker-compose.yml`, et c'est
-volontaire : le Traefik du projet `iris-dashboard` détient les ports 80/443 et
-le certificat Let's Encrypt pour tout le VPS. Les routes des autres agents sont
-donc déclarées chez lui, dans `configs.traefik_dynamic.content` — c'est déjà le
-cas pour `angele.inris-formations.com`.
+volontaire : sur `Agents.ia`, Traefik est un projet Compose à part
+(`traefik-traefik-1`), en `network_mode: host`, qui détient 80/443 et le
+certificat Let's Encrypt de toutes les marques. Il lit un **provider file**,
+`/docker/traefik/config/`, à raison d'un YAML par agent : `lou-dashboard.yml`,
+`stan-dashboard.yml`, et depuis le 2026-08-12 `maya-dashboard.yml`.
 
-Pour exposer MAYA, ajouter dans ce fichier un routeur
-`Host(\`agent.moto-ecole-inris.fr\`)` vers `http://host.docker.internal:3850`,
-puis redéployer `iris-dashboard`. Et faire pointer le DNS de
-`agent.moto-ecole-inris.fr` sur 31.97.157.174.
+Ce fichier déclare `Host(\`agent.moto-ecole-inris.fr\`) &&
+PathPrefix(\`/admin-maya\`)` vers `http://127.0.0.1:3850` — 127.0.0.1 et non
+`host.docker.internal`, puisque Traefik partage la pile réseau de l'hôte. Les
+middlewares y sont préfixés `maya-` : dans le provider file, les noms sont
+globaux à tous les fichiers, et LOU comme STAN déclarent déjà
+`redirect-signin` et `redirect-root`.
+
+Traefik recharge ce dossier à chaud, sans redémarrage.
+
+**Reste le DNS.** La zone `moto-ecole-inris.fr` est chez OVH
+(`dns200.anycast.me`), pas chez Hostinger. Tant que l'enregistrement A `agent`
+→ 187.124.34.111 n'existe pas, Traefik boucle sur
+`unable to obtain ACME certificate … NXDOMAIN`. Une fois le DNS en place, si le
+certificat tarde, `docker restart traefik-traefik-1` force une nouvelle
+tentative sans attendre la temporisation d'ACME.
 
 ## État à la création (2026-08-12)
 
@@ -115,8 +134,14 @@ Relevé dans la base, pas supposé :
 
 ## Ce qui reste à faire avant la mise en service
 
-1. Poser les secrets : `SUPABASE_SERVICE_ROLE_KEY`, `CROME_INGEST_SECRET`,
-   `ANTHROPIC_API_KEY`, `CRON_SECRET`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`.
+1. **Poser une valeur dans les secrets, pas seulement le nom.** Au 2026-08-12,
+   `NEXTAUTH_SECRET`, `ADMIN_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `SUPABASE_ANON_KEY` et `CRON_SECRET` existaient dans le dépôt **avec une
+   valeur vide** : `gh secret list` les affichait, ils arrivaient à zéro
+   caractère dans le conteneur, et NextAuth répondait 500 `NO_SECRET` sur
+   toutes les routes. `gh secret list` ne dit rien des valeurs — pour les
+   contrôler sans jamais les afficher, lancer le workflow `diag-secrets`, qui
+   n'imprime que des longueurs.
 2. Enregistrer `agent_cron_secret_maya` dans le Vault Supabase de CROME OS :
    `select vault.create_secret('<secret>', 'agent_cron_secret_maya', 'CRON_SECRET du dashboard MAYA');`
 3. Poser `HOSTINGER_API_KEY`. `GH_PAT` n'est **pas** nécessaire tant que le
@@ -124,8 +149,8 @@ Relevé dans la base, pas supposé :
    récupération du `docker-compose.yml` sur un dépôt privé. Si le dépôt
    redevient privé, il lui faudra la portée `repo` — et ce sera un PAT
    **classique**, GHCR et cette action refusant les jetons à portée fine.
-4. Faire pointer `agent.moto-ecole-inris.fr` sur 31.97.157.174, puis déclarer la
-   route dans le Traefik de `iris-dashboard` (voir « Déploiement » ci-dessus).
+4. Créer chez OVH l'enregistrement A `agent.moto-ecole-inris.fr` →
+   187.124.34.111. La route Traefik, elle, est déjà en place.
 5. Éprouver la chaîne sans rien rendre public :
    `GET /admin-maya/api/cron/social-auto?review_only=1`.
 
