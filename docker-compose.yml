@@ -33,6 +33,10 @@ services:
       - CROME_INGEST_URL=${CROME_INGEST_URL}
       - CROME_INGEST_SECRET=${CROME_INGEST_SECRET}
 
+      # Le dashboard en a besoin autant que le cron : c'est lui qui vérifie
+      # l'en-tête Bearer, et son absence fait répondre 500 aux routes /api/cron.
+      - CRON_SECRET=${CRON_SECRET}
+
       # IA
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 
@@ -41,9 +45,13 @@ services:
       - BRIEF_TO=${BRIEF_TO}
       - BRIEF_FROM=${BRIEF_FROM}
     healthcheck:
+      # 127.0.0.1 et non localhost : dans l'image, localhost résout d'abord en
+      # [::1], or le serveur Next n'écoute qu'en IPv4 (HOSTNAME=0.0.0.0). wget
+      # recevait « connection refused », le conteneur restait unhealthy, et
+      # maya-cron — qui attend service_healthy — ne démarrait jamais.
       test:
         ["CMD", "wget", "--no-verbose", "--tries=1", "--spider",
-         "http://localhost:3850/admin-maya/api/auth/session"]
+         "http://127.0.0.1:3850/admin-maya/api/auth/session"]
       interval: 30s
       timeout: 10s
       retries: 3
