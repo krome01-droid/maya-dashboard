@@ -25,6 +25,7 @@ const CROME_SECRET = process.env.CROME_INGEST_SECRET
 // L'agent ne détient donc aucune clé de fournisseur d'images, et son quota de
 // génération est appliqué côté studio.
 const CROME_MEDIA_URL = CROME_URL?.replace(/\/submit-post$/, "/generate-media")
+const CROME_VAULT_URL = CROME_URL?.replace(/\/submit-post$/, "/register-cron-secret")
 
 export interface Scene {
   key: string
@@ -148,6 +149,47 @@ export async function submitPost(
       signal: AbortSignal.timeout(30_000),
     })
     const body = (await res.json().catch(() => ({}))) as SubmitResult
+    if (!res.ok) return { ...body, error: body.error ?? `http_${res.status}` }
+    return body
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "injoignable" }
+  }
+}
+
+export interface VaultResult {
+  ok?: boolean
+  cle?: string
+  cree?: boolean
+  error?: string
+  detail?: string
+}
+
+/**
+ * Dépose le CRON_SECRET de cet agent dans le Vault de CROME OS.
+ *
+ * Sans ça, le hub connaît MAYA mais ne peut pas déclencher ses tâches :
+ * `runAgentJob` lit le secret dans Vault pour appeler l'agent en `Bearer`.
+ *
+ * La valeur est lue ici, dans le conteneur où elle vit déjà, et part
+ * directement vers le hub. Elle ne passe ni par un presse-papiers, ni par un
+ * terminal, ni par une conversation — c'est précisément ce que demande le
+ * commentaire de la migration 0006 de CROME OS.
+ */
+export async function registerCronSecret(): Promise<VaultResult> {
+  const secret = process.env.CRON_SECRET
+  if (!CROME_VAULT_URL || !CROME_SECRET) {
+    return { error: "CROME_INGEST_URL / CROME_INGEST_SECRET absents" }
+  }
+  if (!secret) return { error: "CRON_SECRET absent de cet environnement" }
+
+  try {
+    const res = await fetch(CROME_VAULT_URL, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ agent_id: AGENT_ID, cron_secret: secret }),
+      signal: AbortSignal.timeout(20_000),
+    })
+    const body = (await res.json().catch(() => ({}))) as VaultResult
     if (!res.ok) return { ...body, error: body.error ?? `http_${res.status}` }
     return body
   } catch (e) {
