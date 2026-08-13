@@ -81,10 +81,25 @@ Article de fond → appel à l'action vers une formation → post social qui ren
 à l'article. L'article porte le référencement et dure ; le post n'amène du
 monde que deux jours.
 
-`create_blog_article` dépose un **brouillon** dans `blog_posts` — jamais un
-article publié. Même règle que pour les réseaux : MAYA propose, Armel publie
-depuis l'admin du site. Un article public engage la marque plus durablement
-qu'un post et reste indexé longtemps après qu'on l'a oublié.
+`create_blog_article` dépose un **brouillon**. `publier_article` le met en
+ligne, et seulement sur demande explicite d'Armel. Deux appels distincts, et
+non un booléen de rédaction : une page publiée est indexée, citée, et reste des
+années — la faire dépendre d'un champ parmi quinze qu'un modèle peut cocher de
+travers n'était pas le même risque qu'un post social qui disparaît en deux jours.
+
+Les **interdictions sont rejouées à la publication** : un brouillon validé à la
+rédaction a pu être retouché dans l'admin, et c'est la mise en ligne qui expose.
+Les critères de longueur et de structure, eux, ne le sont pas — ils ne limitent
+que le référencement.
+
+**« Publié » ne veut pas dire « la page répond ».** Le site est en ISR : une URL
+visitée pendant que l'article était en brouillon garde son 404 en cache. Observé
+en production le 2026-08-13 — `status = published` en base, `HTTP 404` avec
+`x-vercel-cache: HIT` et `age: 1051`. Deux correctifs : la fenêtre du blog est
+passée de 1800 s à 120 s côté site, et `publier_article` appelle réellement
+l'URL publique avant d'annoncer quoi que ce soit. Tant que `page_en_ligne` est
+faux, MAYA ne propose pas le post social — un lien mort reste dans le fil bien
+après.
 
 **Les règles de la persona sont revérifiées en code** dans `lib/seo/article.ts`,
 avant toute écriture. Ce n'est pas de la redondance. L'article
