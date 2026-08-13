@@ -8,10 +8,20 @@
  * de justesse avant publication). D'où la règle tenue dans tout ce fichier :
  * on ne renvoie que des colonnes lues, jamais d'agrégat reconstitué à vue.
  *
- * Lecture seule. Les écritures sur `orders`, `order_items` et `payouts`
- * appartiennent au webhook Stripe — voir `lib/supabase/admin.ts`.
+ * Une seule écriture est autorisée ici : la création d'un **brouillon**
+ * d'article de blog (`creerArticleBrouillon`). Elle ne touche aucune donnée de
+ * réservation et ne rend rien public — le passage en `published` reste une
+ * action humaine dans l'admin du site. Les écritures sur `orders`,
+ * `order_items` et `payouts` appartiennent au webhook Stripe — voir
+ * `lib/supabase/admin.ts`.
  */
 import { supabaseAdmin } from "./admin"
+import {
+  slugifier,
+  compterMots,
+  tempsLecture,
+  type ArticleEntrant,
+} from "@/lib/seo/article"
 
 export interface Centre {
   id: string
@@ -163,5 +173,147 @@ export async function getChiffres(): Promise<Chiffres> {
     articles: articles.count ?? 0,
     demandesRappel: rappels.count ?? 0,
     demandesB2B: b2b.count ?? 0,
+  }
+}
+
+// ───────────────────────────── Blog : rédaction ─────────────────────────────
+
+export interface CategorieBlog {
+  slug: string
+  name: string
+  articles_publies: number
+}
+
+/** Rubriques du blog, avec le nombre d'articles publiés dans chacune. */
+export async function getCategoriesBlog(): Promise<CategorieBlog[]> {
+  const db = supabaseAdmin()
+  const { data: cats, error } = await db
+    .from("blog_categories")
+    .select("id, slug, name")
+    .order("name")
+  if (error) throw new Error(`blog_categories: ${error.message}`)
+
+  const { data: posts, error: e2 } = await db
+    .from("blog_posts")
+    .select("category_id")
+    .eq("status", "published")
+  if (e2) throw new Error(`blog_posts: ${e2.message}`)
+
+  const parCategorie = new Map<string, number>()
+  for (const p of posts ?? []) {
+    const k = (p as { category_id: string | null }).category_id
+    if (k) parCategorie.set(k, (parCategorie.get(k) ?? 0) + 1)
+  }
+
+  return (cats ?? []).map((c) => {
+    const { id, slug, name } = c as { id: string; slug: string; name: string }
+    return { slug, name, articles_publies: parCategorie.get(id) ?? 0 }
+  })
+}
+
+/**
+ * Tous les slugs, brouillons compris.
+ *
+ * Se limiter aux publiés laisserait MAYA réécrire un brouillon en attente et
+ * heurter la contrainte d'unicité au moment de l'insertion, après avoir rédigé
+ * 1 500 mots pour rien.
+ */
+export async function getSlugsArticles(): Promise<{ slug: string; titre: string; status: string }[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("blog_posts")
+    .select("slug, title, status")
+    .order("created_at", { ascending: false })
+  if (error) throw new Error(`blog_posts: ${error.message}`)
+  return (data ?? []).map((a) => {
+    const { slug, title, status } = a as { slug: string; title: string; status: string | null }
+    return { slug, titre: title, status: status ?? "draft" }
+  })
+}
+
+export interface ArticleCree {
+  id: string
+  slug: string
+  url_publique: string
+  url_admin: string
+  mots: number
+  temps_lecture: number
+}
+
+/**
+ * Insère un article en **brouillon**.
+ *
+ * `status: "draft"` n'est pas un paramètre, et ne doit pas le devenir : MAYA
+ * propose, elle ne publie pas — même règle que pour les réseaux sociaux. Un
+ * article public engage la marque plus durablement qu'un post, et reste
+ * indexé longtemps après qu'on l'a oublié.
+ */
+export async function creerArticleBrouillon(a: ArticleEntrant): Promise<ArticleCree> {
+  const db = supabaseAdmin()
+  const slug = a.slug ? slugifier(a.slug) : slugifier(a.titre)
+  const mots = compterMots(a.contenu_html)
+
+  const { data: categorie, error: eCat } = await db
+    .from("blog_categories")
+    .select("id")
+    .eq("slug", a.categorie_slug)
+    .maybeSingle()
+  if (eCat) throw new Error(`blog_categories: ${eCat.message}`)
+  if (!categorie) throw new Error(`Catégorie « ${a.categorie_slug} » introuvable.`)
+
+  const faq = (a.faq ?? []).map((q) => ({
+    question: q.question.trim(),
+    reponse: q.reponse.trim(),
+  }))
+
+  const { data, error } = await db
+    .from("blog_posts")
+    .insert({
+      title: a.titre,
+      slug,
+      excerpt: a.excerpt,
+      content: a.contenu_html,
+      meta_title: a.meta_title?.trim() || a.titre,
+      meta_description: a.meta_description,
+      meta_keywords: a.mots_cles?.length ? a.mots_cles.join(", ") : null,
+      canonical_url: `https://www.moto-ecole-inris.fr/blog/${slug}`,
+      target_city: a.ville_cible ?? null,
+      target_department: a.departement_cible ?? null,
+      target_region: a.region_cible ?? null,
+      cover_image: a.image_url ?? null,
+      cover_image_alt: a.image_alt ?? null,
+      featured_image: a.image_url ?? null,
+      featured_image_alt: a.image_alt ?? null,
+      og_image: a.image_url ?? null,
+      category_id: (categorie as { id: string }).id,
+      status: "draft",
+      allow_indexing: true,
+      schema_type: "Article",
+      faq_data: faq.length ? faq : null,
+      word_count: mots,
+      reading_time_minutes: tempsLecture(mots),
+      author_name: "INRI'S Moto",
+    })
+    // On relit `word_count` et `reading_time_minutes` : le déclencheur
+    // `blog_posts_reading_time` les recalcule à l'insertion et fait autorité.
+    // Renvoyer nos valeurs ferait annoncer à MAYA un compte que la page ne
+    // confirmerait pas.
+    .select("id, slug, word_count, reading_time_minutes")
+    .single()
+
+  if (error) throw new Error(`blog_posts insert: ${error.message}`)
+
+  const ligne = data as {
+    id: string
+    slug: string
+    word_count: number | null
+    reading_time_minutes: number | null
+  }
+  return {
+    id: ligne.id,
+    slug,
+    url_publique: `https://www.moto-ecole-inris.fr/blog/${slug}`,
+    url_admin: `https://www.moto-ecole-inris.fr/admin/blog/edit/${ligne.id}`,
+    mots: ligne.word_count ?? mots,
+    temps_lecture: ligne.reading_time_minutes ?? tempsLecture(mots),
   }
 }

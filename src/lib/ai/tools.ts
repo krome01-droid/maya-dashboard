@@ -3,11 +3,12 @@ import type Anthropic from "@anthropic-ai/sdk"
 /**
  * Les outils de MAYA.
  *
- * Volontairement peu nombreux et tous en lecture, sauf deux : proposer un post
- * et demander un visuel. MAYA communique — elle ne touche ni au catalogue, ni
- * aux sessions, ni aux commandes. Ces tables appartiennent au portail école et
- * au webhook Stripe ; lui donner de quoi les écrire créerait deux chemins
- * d'écriture concurrents sur des données de réservation payées.
+ * Volontairement peu nombreux et tous en lecture, sauf trois : proposer un
+ * post, demander un visuel, et déposer un **brouillon** d'article. MAYA
+ * communique — elle ne touche ni au catalogue, ni aux sessions, ni aux
+ * commandes. Ces tables appartiennent au portail école et au webhook Stripe ;
+ * lui donner de quoi les écrire créerait deux chemins d'écriture concurrents
+ * sur des données de réservation payées.
  *
  * Les descriptions sont rédigées pour le modèle, pas pour un lecteur humain :
  * elles disent quand appeler l'outil, et ce que le retour ne contient pas.
@@ -66,6 +67,106 @@ export const MAYA_TOOLS: Anthropic.Tool[] = [
       "articles publiés, demandes de rappel et demandes B2B en attente. " +
       "Utiliser pour le brief quotidien et pour tout chiffre cité publiquement.",
     input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "get_contexte_blog",
+    description:
+      "À appeler OBLIGATOIREMENT avant create_blog_article. Renvoie les rubriques " +
+      "disponibles, tous les slugs déjà pris (brouillons compris) et les pages du " +
+      "site vers lesquelles pointer un lien interne. Sans cet appel tu inventeras " +
+      "une rubrique inexistante ou un slug déjà utilisé, et l'article sera refusé " +
+      "après avoir été rédigé pour rien.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "create_blog_article",
+    description:
+      "Dépose un article de blog en BROUILLON sur moto-ecole-inris.fr. Rien n'est " +
+      "publié : Armel relit et publie depuis l'admin du site. " +
+      "L'outil refuse l'article s'il enfreint une règle éditoriale ou de référencement, " +
+      "et renvoie alors la liste précise des motifs — corrige-les et rappelle-le. " +
+      "Un refus ne consomme rien : aucune ligne n'est écrite. " +
+      "Écris le corps en HTML sémantique, sans <h1> (le gabarit rend le titre), " +
+      "avec des <h2>, des <h3>, des <ul> et au moins un lien interne vers une page " +
+      "de service. Demander confirmation à Armel avant l'appel.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        titre: {
+          type: "string",
+          description: "Titre de l'article, 25 à 75 caractères. Sert de H1 sur la page.",
+        },
+        slug: {
+          type: "string",
+          description:
+            "Slug d'URL. Omettre pour le déduire du titre. Doit être absent de get_contexte_blog.",
+        },
+        meta_title: {
+          type: "string",
+          description: "Titre pour les résultats de recherche, 60 caractères maximum. Défaut : le titre.",
+        },
+        meta_description: {
+          type: "string",
+          description:
+            "Description pour les résultats de recherche, 110 à 158 caractères. " +
+            "Doit contenir la requête visée et une raison de cliquer.",
+        },
+        excerpt: {
+          type: "string",
+          description: "Chapeau affiché dans la liste des articles, 80 à 220 caractères.",
+        },
+        contenu_html: {
+          type: "string",
+          description:
+            "Corps en HTML sémantique : <h2>, <h3>, <p>, <ul>, <table>, <strong>, <a>. " +
+            "Aucun <h1>, aucun <script>, aucun style en ligne. 900 mots minimum, 1400 conseillés.",
+        },
+        mots_cles: {
+          type: "array",
+          items: { type: "string" },
+          description: "Requêtes visées, la principale en premier.",
+        },
+        faq: {
+          type: "array",
+          description:
+            "Au moins 3 questions. C'est ce bloc que les moteurs de réponse citent : " +
+            "chaque réponse doit se suffire hors contexte, 120 caractères minimum.",
+          items: {
+            type: "object",
+            properties: {
+              question: { type: "string", description: "Question complète, terminée par « ? »." },
+              reponse: { type: "string", description: "Réponse autonome et factuelle." },
+            },
+            required: ["question", "reponse"],
+          },
+        },
+        categorie_slug: {
+          type: "string",
+          description: "Slug d'une rubrique renvoyée par get_contexte_blog.",
+        },
+        ville_cible: {
+          type: "string",
+          description:
+            "Ville visée, pour un article local. Ne la renseigner que si le contenu " +
+            "parle réellement de cette ville et qu'un centre du réseau s'y trouve.",
+        },
+        departement_cible: { type: "string", description: "Département visé, le cas échéant." },
+        region_cible: { type: "string", description: "Région visée, le cas échéant." },
+        image_url: { type: "string", description: "URL de l'image de couverture (celle de generate_visual convient)." },
+        image_alt: {
+          type: "string",
+          description: "Texte alternatif décrivant l'image. Obligatoire dès qu'une image est fournie.",
+        },
+      },
+      required: [
+        "titre",
+        "meta_description",
+        "excerpt",
+        "contenu_html",
+        "faq",
+        "categorie_slug",
+      ],
+    },
   },
   {
     name: "generate_visual",

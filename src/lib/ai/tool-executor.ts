@@ -5,8 +5,31 @@ import {
   getSessionsOuvertes,
   getArticles,
   getChiffres,
+  getCategoriesBlog,
+  getSlugsArticles,
+  creerArticleBrouillon,
 } from "@/lib/supabase/queries"
 import { fetchScenes, requestImage, submitPost, isCromeConfigured } from "@/lib/crome/client"
+import { verifierArticle, type ArticleEntrant } from "@/lib/seo/article"
+
+/**
+ * Pages de service vers lesquelles un article peut pointer.
+ *
+ * Codées en dur parce que ce sont des routes du site, pas des lignes en base :
+ * les déduire d'une table ferait proposer à MAYA des liens qui n'existent pas.
+ * Les fiches formation (`/formation/<slug>`) viennent, elles, du catalogue.
+ */
+const PAGES_DE_SERVICE: { chemin: string; usage: string }[] = [
+  { chemin: "/formations-permis-moto", usage: "Toutes les formations au permis moto — cible par défaut." },
+  { chemin: "/permis-moto-accelere", usage: "Formation accélérée." },
+  { chemin: "/passerelle-a2-a", usage: "Passerelle A2 vers A, 7 heures." },
+  { chemin: "/permis-125", usage: "Conduire un 125 avec le permis B." },
+  { chemin: "/formation-125", usage: "Formation 7 heures 125 cm³." },
+  { chemin: "/prix-permis-moto", usage: "Tarifs — utile depuis tout article de coût." },
+  { chemin: "/stages-circuit-moto", usage: "Stages sur circuit." },
+  { chemin: "/formation-moto-entreprise", usage: "Offre entreprise." },
+  { chemin: "/nos-centres", usage: "Carte des centres — cible d'un article local." },
+]
 
 type ToolHandler = (input: Record<string, unknown>) => Promise<unknown>
 
@@ -66,6 +89,82 @@ const toolHandlers: Record<string, ToolHandler> = {
 
   async get_chiffres() {
     return await getChiffres()
+  },
+
+  async get_contexte_blog() {
+    const [rubriques, deja, formations] = await Promise.all([
+      getCategoriesBlog(),
+      getSlugsArticles(),
+      getFormations(),
+    ])
+
+    return {
+      rubriques,
+      slugs_deja_pris: deja,
+      liens_internes_possibles: [
+        ...PAGES_DE_SERVICE,
+        ...formations
+          .filter((f) => f.slug)
+          .map((f) => ({ chemin: `/formation/${f.slug}`, usage: f.name })),
+      ],
+      rappel:
+        "Le lien interne est la raison d'être de l'article : il doit conduire vers une " +
+        "formation ou une page de service. Un article sans destination ne sert à rien.",
+    }
+  },
+
+  async create_blog_article(input) {
+    const article: ArticleEntrant = {
+      titre: String(input.titre ?? "").trim(),
+      slug: input.slug ? String(input.slug) : undefined,
+      meta_title: input.meta_title ? String(input.meta_title) : undefined,
+      meta_description: String(input.meta_description ?? "").trim(),
+      excerpt: String(input.excerpt ?? "").trim(),
+      contenu_html: String(input.contenu_html ?? "").trim(),
+      mots_cles: Array.isArray(input.mots_cles) ? input.mots_cles.map(String) : [],
+      faq: Array.isArray(input.faq)
+        ? (input.faq as Record<string, unknown>[]).map((q) => ({
+            question: String(q?.question ?? ""),
+            reponse: String(q?.reponse ?? ""),
+          }))
+        : [],
+      categorie_slug: String(input.categorie_slug ?? "").trim(),
+      ville_cible: input.ville_cible ? String(input.ville_cible) : undefined,
+      departement_cible: input.departement_cible ? String(input.departement_cible) : undefined,
+      region_cible: input.region_cible ? String(input.region_cible) : undefined,
+      image_url: input.image_url ? String(input.image_url) : undefined,
+      image_alt: input.image_alt ? String(input.image_alt) : undefined,
+    }
+
+    const [rubriques, deja] = await Promise.all([getCategoriesBlog(), getSlugsArticles()])
+    const verdict = verifierArticle(article, {
+      slugsExistants: deja.map((a) => a.slug),
+      categoriesConnues: rubriques.map((r) => r.slug),
+    })
+
+    // Refus avant toute écriture : un article incomplet ne doit pas laisser de
+    // brouillon à moitié valide qu'on retrouverait six mois plus tard.
+    if (verdict.blocages.length) {
+      return {
+        refuse: true,
+        blocages: verdict.blocages,
+        reserves: verdict.reserves,
+        lecture:
+          "Rien n'a été écrit en base. Corrige les points ci-dessus et rappelle " +
+          "create_blog_article avec l'article entier — pas seulement les corrections.",
+      }
+    }
+
+    const cree = await creerArticleBrouillon(article)
+    return {
+      ...cree,
+      reserves: verdict.reserves,
+      lecture:
+        `Brouillon déposé (${cree.mots} mots). Il n'est PAS en ligne : ` +
+        `Armel le relit et le publie depuis ${cree.url_admin}. ` +
+        `Ne propose le post social de promotion qu'une fois l'article publié — ` +
+        `un lien vers un brouillon renvoie sur une page introuvable.`,
+    }
   },
 
   async generate_visual(input) {
