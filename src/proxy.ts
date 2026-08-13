@@ -20,6 +20,14 @@ export async function proxy(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
 
   if (!token) {
+    // Une route d'API répond 401, elle ne redirige pas. Rediriger renverrait au
+    // `fetch` la page de connexion en HTML avec un statut 200 : le client
+    // croirait à une réponse valide et afficherait « aucun historique » là où
+    // la session a simplement expiré.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    }
+
     const loginUrl = req.nextUrl.clone()
     loginUrl.pathname = "/login"
     // Le callbackUrl doit inclure le basePath, sinon NextAuth renvoie à la racine.
