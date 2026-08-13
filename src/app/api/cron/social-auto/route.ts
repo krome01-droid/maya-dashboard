@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { cronAutorise } from "@/lib/cron/auth"
 import { getArticles, getSessionsOuvertes } from "@/lib/supabase/queries"
+import { blocFaitsCourant } from "@/lib/memoire/faits"
 import {
   fetchScenes,
   requestImage,
@@ -105,6 +106,11 @@ export async function GET(req: Request) {
       ? scenes.map((s) => `- ${s.key} : ${s.depicts}`).join("\n")
       : "(catalogue indisponible — omets le champ scene)"
 
+    // Les consignes durables valent aussi ici — surtout ici : ce post part sans
+    // qu'Armel le relise, et c'est précisément pour ça qu'il a demandé à MAYA
+    // de retenir ses corrections.
+    const consignes = await blocFaitsCourant()
+
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const response = await client.messages.create({
       model: MODEL,
@@ -148,6 +154,7 @@ La plateforme est un intermédiaire de réservation, pas une moto-école : écri
 Un agent voisin a publié « Déjà actif à Strasbourg, Rennes, Lille » : c'était
 inventé, et il a fallu l'intercepter avant publication. Dans le doute, reste sur
 la matière et invite à consulter la page.
+${consignes}
 
 Ton direct et concret, sans emphase publicitaire. 100 à 200 caractères hors
 hashtags. 3 à 5 hashtags maximum, en français. Au plus un émoji, ou aucun.`,

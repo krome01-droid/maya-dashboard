@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase/queries"
 import { fetchScenes, requestImage, submitPost, isCromeConfigured } from "@/lib/crome/client"
 import { verifierArticle, type ArticleEntrant } from "@/lib/seo/article"
+import { memoriser, oublier, lireFaits, MAX_FAITS } from "@/lib/memoire/faits"
 
 /**
  * Pages de service vers lesquelles un article peut pointer.
@@ -89,6 +90,48 @@ const toolHandlers: Record<string, ToolHandler> = {
 
   async get_chiffres() {
     return await getChiffres()
+  },
+
+  async memoriser(input) {
+    const res = await memoriser(
+      String(input.cle ?? ""),
+      String(input.fait ?? ""),
+      input.pourquoi ? String(input.pourquoi) : undefined,
+    )
+
+    if (!res.ok) {
+      return {
+        refuse: true,
+        motif: res.refus,
+        lecture: "Rien n'a été mémorisé. Explique le motif à Armel plutôt que de reformuler seul.",
+      }
+    }
+
+    const faits = await lireFaits()
+    return {
+      cle: res.cle,
+      remplace: res.remplace,
+      total: faits.length,
+      restant: MAX_FAITS - faits.length,
+      lecture: res.remplace
+        ? `Consigne « ${res.cle} » remplacée. L'ancienne version ne s'applique plus.`
+        : `Consigne « ${res.cle} » retenue. Elle vaudra aussi pour les tâches planifiées.`,
+    }
+  },
+
+  async oublier(input) {
+    const cle = String(input.cle ?? "")
+    const supprime = await oublier(cle)
+    const faits = await lireFaits()
+    return {
+      supprime,
+      total: faits.length,
+      lecture: supprime
+        ? `Consigne « ${cle} » oubliée.`
+        : `Aucune consigne sous la clé « ${cle} ». Clés existantes : ${
+            faits.map((f) => f.cle).join(", ") || "aucune"
+          }.`,
+    }
   },
 
   async get_contexte_blog() {

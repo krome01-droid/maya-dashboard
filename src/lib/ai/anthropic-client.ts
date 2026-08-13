@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { MAYA_SYSTEM_PROMPT } from "./maya-prompt"
+import { blocFaitsCourant } from "@/lib/memoire/faits"
 import { MAYA_TOOLS } from "./tools"
 import { executeTool } from "./tool-executor"
 import type { StreamEvent, FileAttachment } from "./types"
@@ -123,6 +124,11 @@ export function streamChatWithTools(
   return new ReadableStream({
     async start(controller) {
       try {
+        // Les consignes durables sont relues à chaque échange, pas au
+        // démarrage du serveur : une consigne donnée dans le message précédent
+        // doit s'appliquer au suivant, sans redéploiement.
+        const systemPrompt = MAYA_SYSTEM_PROMPT + (await blocFaitsCourant())
+
         let currentMessages: Anthropic.MessageParam[] = messages.map((m) => {
           if (m.role === "user" && m.attachments?.length) {
             return {
@@ -148,7 +154,7 @@ export function streamChatWithTools(
               const messageStream = client.messages.stream({
                 model: MODEL,
                 max_tokens: MAX_TOKENS,
-                system: MAYA_SYSTEM_PROMPT,
+                system: systemPrompt,
                 messages: currentMessages,
                 tools: MAYA_TOOLS,
               })

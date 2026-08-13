@@ -1,6 +1,7 @@
 import { Header } from "@/components/layout/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Check, X } from "lucide-react"
+import { MemoirePanel } from "@/components/settings/memoire-panel"
 
 export const dynamic = "force-dynamic"
 
@@ -74,6 +75,8 @@ export default function SettingsPage() {
             </Card>
           ))}
         </div>
+
+        <MemoirePanel />
       </div>
     </>
   )
