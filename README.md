@@ -25,6 +25,29 @@ sessions et les commandes appartiennent au portail école et au webhook Stripe ;
 lui donner de quoi les écrire créerait deux chemins d'écriture concurrents sur
 des réservations payées.
 
+## Mémoire des conversations
+
+Table `maya_conversations` dans la base de la marketplace — préfixée pour qu'on
+ne la prenne pas pour une table produit. **RLS activée sans aucune policy** :
+seul le `service_role`, donc le serveur de ce dashboard, y accède. Une
+conversation avec MAYA contient des chiffres internes et des brouillons ; elle
+n'a rien à faire dans la portée d'un compte de la marketplace, fût-il
+administrateur.
+
+L'écriture se fait dans la route de chat, **pas dans le navigateur** : celui-ci
+peut être fermé au milieu d'une réponse, et seul le flux sait quand elle est
+complète. Le flux est dupliqué à la volée plutôt que mis en tampon — attendre la
+fin pour écrire supprimerait le streaming.
+
+L'identifiant de session vit dans `localStorage`. Trois actions dans l'en-tête :
+**Historique** revient à une conversation antérieure, **Nouvelle** en ouvre une
+sans rien perdre, **Effacer** supprime aussi côté serveur — ne vider que
+l'affichage aurait fait réapparaître l'historique au rechargement suivant.
+
+Les routes `/api/` répondent **401** quand la session a expiré, au lieu de
+rediriger vers la page de connexion : une redirection renvoyait au `fetch` du
+HTML avec un statut 200, et le client concluait à un historique vide.
+
 ## Rédaction d'articles : la stratégie et son garde-fou
 
 Article de fond → appel à l'action vers une formation → post social qui renvoie
