@@ -242,8 +242,13 @@ toute comparaison).
    toutes les routes. `gh secret list` ne dit rien des valeurs — pour les
    contrôler sans jamais les afficher, lancer le workflow `diag-secrets`, qui
    n'imprime que des longueurs.
-2. Enregistrer `agent_cron_secret_maya` dans le Vault Supabase de CROME OS :
-   `select vault.create_secret('<secret>', 'agent_cron_secret_maya', 'CRON_SECRET du dashboard MAYA');`
+2. Enregistrer `agent_cron_secret_maya` dans le Vault de CROME OS. **Fait le
+   2026-08-13**, et plus jamais à la main : `POST /admin-maya/api/crome/register-cron`
+   (session admin requise) fait lire à MAYA sa propre variable et l'envoie à
+   l'Edge Function `register-cron-secret` du hub. La valeur va du conteneur au
+   Vault sans passer par un presse-papiers ni un terminal. **À rejouer après
+   toute rotation du `CRON_SECRET`**, sans quoi le hub appellerait MAYA avec
+   l'ancienne valeur et récolterait un 401.
 3. Poser `HOSTINGER_API_KEY`. `GH_PAT` n'est **pas** nécessaire tant que le
    dépôt est public : l'action ne s'en sert que pour authentifier la
    récupération du `docker-compose.yml` sur un dépôt privé. Si le dépôt
