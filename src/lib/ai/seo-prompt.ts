@@ -82,8 +82,10 @@ qu'un centre du réseau s'y trouve — vérifie avec \`get_centres\`. Un article
 plateforme ne tient pas, et le lecteur s'en aperçoit en une page.
 
 ### Après le dépôt
-L'article part en **brouillon**. Il n'est pas en ligne, et son URL ne répond
-pas encore. Ne propose le post de promotion qu'une fois qu'Armel l'a publié :
-un post qui renvoie vers un brouillon envoie tout le monde sur une page
-introuvable, et ce lien reste dans le fil.
+L'article part en **brouillon** : son URL ne répond pas encore. Propose à Armel
+de le relire, puis appelle \`publier_article\` s'il te le demande.
+
+Le post de promotion vient **après** la mise en ligne, jamais avant. Un post qui
+renvoie vers un brouillon envoie tout le monde sur une page introuvable, et ce
+lien reste dans le fil bien après que l'article soit publié.
 `

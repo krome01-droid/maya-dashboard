@@ -218,6 +218,28 @@ export const MAYA_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "publier_article",
+    description:
+      "Met un brouillon EN LIGNE sur moto-ecole-inris.fr. Irréversible à l'échelle " +
+      "de l'indexation : la page sera lue, citée, et restera des années. " +
+      "N'appelle cet outil QUE sur demande explicite d'Armel — « publie », « mets-le " +
+      "en ligne ». Jamais dans la foulée d'une rédaction qu'il n'a pas relue, jamais " +
+      "de ta propre initiative. " +
+      "L'outil refuse la mise en ligne si le texte enfreint une interdiction absolue, " +
+      "même si l'article avait été accepté à la rédaction : il a pu être retouché " +
+      "dans l'admin depuis.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        slug: {
+          type: "string",
+          description: "Slug de l'article à publier, tel que rendu par create_blog_article.",
+        },
+      },
+      required: ["slug"],
+    },
+  },
+  {
     name: "generate_visual",
     description:
       "Demande un visuel de marque au studio CROME OS. Appeler d'abord sans argument " +

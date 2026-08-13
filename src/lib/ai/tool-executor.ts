@@ -8,6 +8,7 @@ import {
   getCategoriesBlog,
   getSlugsArticles,
   creerArticleBrouillon,
+  publierArticle,
 } from "@/lib/supabase/queries"
 import { fetchScenes, requestImage, submitPost, isCromeConfigured } from "@/lib/crome/client"
 import { verifierArticle, type ArticleEntrant } from "@/lib/seo/article"
@@ -207,6 +208,33 @@ const toolHandlers: Record<string, ToolHandler> = {
         `Armel le relit et le publie depuis ${cree.url_admin}. ` +
         `Ne propose le post social de promotion qu'une fois l'article publié — ` +
         `un lien vers un brouillon renvoie sur une page introuvable.`,
+    }
+  },
+
+  async publier_article(input) {
+    const res = await publierArticle(String(input.slug ?? ""))
+
+    if (res.refuse) {
+      return {
+        refuse: true,
+        motifs: res.motifs,
+        lecture:
+          "L'article reste en brouillon. Ces formulations exposent la marque : " +
+          "corrige-les dans l'admin, ou dis à Armel ce qui bloque.",
+      }
+    }
+
+    if (res.deja_publie) {
+      return { ...res, lecture: `« ${res.titre} » etait deja en ligne : ${res.url}` }
+    }
+
+    return {
+      ...res,
+      lecture:
+        `« ${res.titre} » est en ligne : ${res.url}. ` +
+        "La page repond immediatement ; la liste du blog et le plan du site se " +
+        "rafraichissent dans la demi-heure. Tu peux maintenant proposer le post " +
+        "social qui y renvoie.",
     }
   },
 

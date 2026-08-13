@@ -151,6 +151,25 @@ export function liensInternes(html: string): string[] {
  * cannibalisation — deux articles sur la même intention se font concurrence
  * dans les résultats au lieu de s'additionner.
  */
+/**
+ * Les seules interdictions, appliquées à un texte quelconque.
+ *
+ * Extrait de `verifierArticle` pour être rejoué **au moment de publier** : un
+ * brouillon validé à la rédaction a pu être retouché dans l'admin entre-temps,
+ * et c'est la mise en ligne qui expose. On ne rejoue que ces règles-là — les
+ * critères de longueur ou de structure ne font que limiter le référencement,
+ * et bloquer une publication décidée par Armel pour 200 mots manquants serait
+ * absurde.
+ */
+export function verifierInterdits(texte: string): string[] {
+  const trouves: string[] = []
+  for (const { motif, explication } of INTERDITS) {
+    const t = texte.match(motif)
+    if (t) trouves.push(`« ${t[0].trim()} » — ${explication}`)
+  }
+  return trouves
+}
+
 export function verifierArticle(
   a: ArticleEntrant,
   contexte: { slugsExistants: string[]; categoriesConnues: string[] },

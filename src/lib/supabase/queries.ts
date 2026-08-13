@@ -8,18 +8,23 @@
  * de justesse avant publication). D'où la règle tenue dans tout ce fichier :
  * on ne renvoie que des colonnes lues, jamais d'agrégat reconstitué à vue.
  *
- * Une seule écriture est autorisée ici : la création d'un **brouillon**
- * d'article de blog (`creerArticleBrouillon`). Elle ne touche aucune donnée de
- * réservation et ne rend rien public — le passage en `published` reste une
- * action humaine dans l'admin du site. Les écritures sur `orders`,
- * `order_items` et `payouts` appartiennent au webhook Stripe — voir
- * `lib/supabase/admin.ts`.
+ * Deux écritures seulement, et toutes deux sur le blog : `creerArticleBrouillon`
+ * et `publierArticle`. Aucune donnée de réservation n'est touchée. Les
+ * écritures sur `orders`, `order_items` et `payouts` appartiennent au webhook
+ * Stripe — voir `lib/supabase/admin.ts`.
+ *
+ * La publication a longtemps été volontairement absente : MAYA proposait, un
+ * humain publiait. Armel l'a levée le 2026-08-13, l'aller-retour vers l'admin
+ * ne payant pas son coût. Elle reste un **acte distinct** de la rédaction,
+ * pour qu'une mise en ligne ne dépende jamais d'un booléen coché de travers.
  */
 import { supabaseAdmin } from "./admin"
 import {
   slugifier,
   compterMots,
   tempsLecture,
+  texteNu,
+  verifierInterdits,
   type ArticleEntrant,
 } from "@/lib/seo/article"
 
@@ -316,4 +321,87 @@ export async function creerArticleBrouillon(a: ArticleEntrant): Promise<ArticleC
     mots: ligne.word_count ?? mots,
     temps_lecture: ligne.reading_time_minutes ?? tempsLecture(mots),
   }
+}
+
+export interface ResultatPublication {
+  refuse?: boolean
+  motifs?: string[]
+  slug: string
+  titre?: string
+  url?: string
+  deja_publie?: boolean
+  publie?: boolean
+}
+
+/**
+ * Met un brouillon en ligne.
+ *
+ * Acte distinct de la rédaction, et c'est délibéré : une page publiée est
+ * indexée, citée, et reste des années. La noyer dans un paramètre booléen de
+ * `creerArticleBrouillon` aurait fait dépendre une mise en ligne d'un champ
+ * parmi quinze, qu'un modèle peut cocher par inadvertance.
+ *
+ * Les interdictions sont rejouées ici. L'article a pu être retouché dans
+ * l'admin depuis sa rédaction, et c'est la publication qui expose — pas le
+ * brouillon. Les critères de longueur et de structure, eux, ne sont pas
+ * rejoués : ils ne limitent que le référencement, et refuser une mise en ligne
+ * décidée par Armel pour 200 mots manquants n'aurait aucun sens.
+ */
+export async function publierArticle(slugBrut: string): Promise<ResultatPublication> {
+  const db = supabaseAdmin()
+  const slug = slugifier(slugBrut)
+
+  const { data, error } = await db
+    .from("blog_posts")
+    .select("id, slug, title, status, content, excerpt, meta_description, faq_data, published_at")
+    .eq("slug", slug)
+    .maybeSingle()
+  if (error) throw new Error(`blog_posts: ${error.message}`)
+  if (!data) throw new Error(`Aucun article sous le slug « ${slug} ».`)
+
+  const a = data as {
+    id: string
+    slug: string
+    title: string
+    status: string | null
+    content: string
+    excerpt: string | null
+    meta_description: string | null
+    faq_data: { question?: string; reponse?: string }[] | null
+    published_at: string | null
+  }
+  const url = `https://www.moto-ecole-inris.fr/blog/${a.slug}`
+
+  if (a.status === "published") {
+    return { slug: a.slug, titre: a.title, url, deja_publie: true, publie: true }
+  }
+
+  const aInspecter = [
+    a.title,
+    a.meta_description ?? "",
+    a.excerpt ?? "",
+    texteNu(a.content),
+    ...(a.faq_data ?? []).flatMap((q) => [q.question ?? "", q.reponse ?? ""]),
+  ].join("\n")
+
+  const motifs = verifierInterdits(aInspecter)
+  if (/<script|<iframe|javascript:|\son[a-z]+\s*=/i.test(a.content)) {
+    motifs.push(
+      "Le HTML contient un script, un cadre ou un gestionnaire d'événement — le contenu est injecté tel quel dans la page.",
+    )
+  }
+  if (motifs.length) return { refuse: true, motifs, slug: a.slug, titre: a.title }
+
+  const { error: eMaj } = await db
+    .from("blog_posts")
+    .update({
+      status: "published",
+      // Un article republié garde sa date d'origine : la réécrire ferait
+      // repartir sa fraîcheur à zéro aux yeux des moteurs, sans raison.
+      published_at: a.published_at ?? new Date().toISOString(),
+    })
+    .eq("id", a.id)
+  if (eMaj) throw new Error(`blog_posts update: ${eMaj.message}`)
+
+  return { slug: a.slug, titre: a.title, url, publie: true }
 }
