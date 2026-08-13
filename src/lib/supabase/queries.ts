@@ -442,3 +442,71 @@ export async function publierArticle(slugBrut: string): Promise<ResultatPublicat
     page_en_ligne: await pageRepond(url),
   }
 }
+
+export interface ResultatIllustration {
+  slug: string
+  titre: string
+  image_url: string
+  deja_illustre: boolean
+}
+
+/**
+ * Attache une couverture à un article existant.
+ *
+ * `create_blog_article` exige désormais une image, mais les articles écrits
+ * avant cette règle n'en ont pas — et un article publié se corrige, il ne se
+ * réécrit pas.
+ *
+ * Les quatre colonnes sont renseignées ensemble : le gabarit lit `cover_image`,
+ * le partage social `og_image`, et `featured_image` traîne depuis un ancien
+ * schéma. En remplir une seule laisse la carte vide quelque part, et personne
+ * ne sait laquelle avant de regarder.
+ */
+export async function illustrerArticle(
+  slugBrut: string,
+  imageUrl: string,
+  imageAlt: string,
+): Promise<ResultatIllustration> {
+  const db = supabaseAdmin()
+  const slug = slugifier(slugBrut)
+  const url = imageUrl.trim()
+  const alt = imageAlt.trim()
+
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error("image_url doit être une URL http(s) complète.")
+  }
+  if (alt.length < 10) {
+    throw new Error(
+      "Le texte alternatif doit décrire l'image en une phrase (10 caractères minimum).",
+    )
+  }
+
+  const { data, error } = await db
+    .from("blog_posts")
+    .select("id, slug, title, cover_image")
+    .eq("slug", slug)
+    .maybeSingle()
+  if (error) throw new Error(`blog_posts: ${error.message}`)
+  if (!data) throw new Error(`Aucun article sous le slug « ${slug} ».`)
+
+  const a = data as { id: string; slug: string; title: string; cover_image: string | null }
+
+  const { error: eMaj } = await db
+    .from("blog_posts")
+    .update({
+      cover_image: url,
+      cover_image_alt: alt,
+      featured_image: url,
+      featured_image_alt: alt,
+      og_image: url,
+    })
+    .eq("id", a.id)
+  if (eMaj) throw new Error(`blog_posts update: ${eMaj.message}`)
+
+  return {
+    slug: a.slug,
+    titre: a.title,
+    image_url: url,
+    deja_illustre: Boolean(a.cover_image),
+  }
+}

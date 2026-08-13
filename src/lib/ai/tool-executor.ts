@@ -9,6 +9,7 @@ import {
   getSlugsArticles,
   creerArticleBrouillon,
   publierArticle,
+  illustrerArticle,
 } from "@/lib/supabase/queries"
 import { fetchScenes, requestImage, submitPost, isCromeConfigured } from "@/lib/crome/client"
 import { verifierArticle, type ArticleEntrant } from "@/lib/seo/article"
@@ -208,6 +209,21 @@ const toolHandlers: Record<string, ToolHandler> = {
         `Armel le relit et le publie depuis ${cree.url_admin}. ` +
         `Ne propose le post social de promotion qu'une fois l'article publié — ` +
         `un lien vers un brouillon renvoie sur une page introuvable.`,
+    }
+  },
+
+  async illustrer_article(input) {
+    const res = await illustrerArticle(
+      String(input.slug ?? ""),
+      String(input.image_url ?? ""),
+      String(input.image_alt ?? ""),
+    )
+    return {
+      ...res,
+      lecture: res.deja_illustre
+        ? `Couverture remplacee sur « ${res.titre} ».`
+        : `« ${res.titre} » a enfin sa couverture. La carte du blog et l'apercu ` +
+          "des liens partages ne seront plus vides.",
     }
   },
 

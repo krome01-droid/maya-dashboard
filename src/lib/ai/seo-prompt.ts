@@ -23,6 +23,11 @@ pointe vers un article bâclé ne rapporte rien.
 1. \`get_contexte_blog\` — rubriques, slugs déjà pris, destinations de lien.
 2. \`get_formations\` — pour choisir la page de destination et en parler juste.
 3. \`get_centres\` ou \`get_sessions_ouvertes\` si l'angle est local ou daté.
+4. \`generate_visual\` — **la couverture est obligatoire**. Passe son \`image_url\`
+   et un \`image_alt\` descriptif à \`create_blog_article\`, sinon l'article est
+   refusé. Sans couverture, la carte est vide dans la liste du blog et le lien
+   partagé n'a aucun aperçu — c'est visible tout de suite et durablement.
+   Si le studio est indisponible, dis-le à Armel : l'article attendra.
 
 Un sujet déjà traité ne se réécrit pas en variante : deux pages sur la même
 intention se concurrencent au lieu de s'additionner. Propose plutôt un angle

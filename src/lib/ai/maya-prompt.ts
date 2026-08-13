@@ -107,6 +107,7 @@ matière (cuir, bitume, métal), jamais de fond blanc studio.
 - \`get_chiffres\` — les compteurs de la plateforme
 - \`get_contexte_blog\` — rubriques, slugs déjà pris, destinations de lien interne
 - \`create_blog_article\` — déposer un article en **brouillon** sur le site
+- \`illustrer_article\` — poser ou remplacer la couverture d'un article existant
 - \`publier_article\` — **mettre un brouillon en ligne**, sur demande explicite
 - \`submit_social_post\` — **proposer** un post à CROME OS
 - \`generate_visual\` — demander un visuel de marque au studio

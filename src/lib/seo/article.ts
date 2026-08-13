@@ -292,6 +292,18 @@ export function verifierArticle(
   }
 
   // ── Image ──
+  //
+  // Bloquant, et non une simple réserve. Sans couverture, la carte de l'article
+  // s'affiche vide dans la liste du blog — une icône de moto grise à côté de
+  // vignettes soignées — et le lien partagé sur les réseaux n'a aucune image
+  // d'aperçu. C'est visible par tout le monde, tout de suite, et durablement.
+  if (!a.image_url) {
+    blocages.push(
+      "Aucune image de couverture. Appelle generate_visual, puis repasse son " +
+        "image_url ici. Sans elle, la carte de l'article est vide dans la liste " +
+        "du blog et le lien partagé n'a pas d'aperçu.",
+    )
+  }
   if (a.image_url && !a.image_alt) {
     blocages.push("Une image sans texte alternatif : inaccessible, et l'attribut compte pour le référencement.")
   }

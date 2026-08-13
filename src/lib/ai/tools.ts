@@ -218,6 +218,30 @@ export const MAYA_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "illustrer_article",
+    description:
+      "Attache une image de couverture à un article existant. Sert à corriger un " +
+      "article écrit avant que la couverture ne soit obligatoire, ou à en changer. " +
+      "Appelle d'abord generate_visual pour obtenir l'URL. Renseigne les quatre " +
+      "colonnes d'image d'un coup — n'essaie pas de les gérer séparément.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        slug: { type: "string", description: "Slug de l'article." },
+        image_url: {
+          type: "string",
+          description: "URL http(s) complète, généralement celle rendue par generate_visual.",
+        },
+        image_alt: {
+          type: "string",
+          description:
+            "Description de l'image en une phrase, pour les lecteurs d'écran et le référencement.",
+        },
+      },
+      required: ["slug", "image_url", "image_alt"],
+    },
+  },
+  {
     name: "publier_article",
     description:
       "Met un brouillon EN LIGNE sur moto-ecole-inris.fr. Irréversible à l'échelle " +
