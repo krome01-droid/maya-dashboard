@@ -13,7 +13,14 @@ import {
 } from "@/components/ui/card"
 import { useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { LogIn, AlertCircle, Eye, EyeOff } from "lucide-react"
+import { LogIn, AlertCircle, Eye, EyeOff, ExternalLink } from "lucide-react"
+
+// Le mot de passe appartient à Supabase Auth, partagé avec la marketplace :
+// le réinitialiser ici le réinitialiserait là-bas, et inversement. On renvoie
+// donc au parcours du site plutôt que d'ouvrir sur ce dashboard un second
+// point d'envoi d'e-mails accessible sans être connecté.
+const URL_MOT_DE_PASSE_OUBLIE =
+  "https://www.moto-ecole-inris.fr/mot-de-passe-oublie"
 
 function LoginForm() {
   const [username, setUsername] = useState("")
@@ -86,7 +93,18 @@ function LoginForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
+              <div className="flex items-baseline justify-between gap-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <a
+                  href={URL_MOT_DE_PASSE_OUBLIE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                >
+                  Mot de passe oublié ?
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
+              </div>
               <div className="relative">
                 <Input
                   id="password"
@@ -125,6 +143,17 @@ function LoginForm() {
               {loading ? "Connexion..." : "Se connecter"}
             </Button>
           </form>
+          {/* Le message d'erreur ne dit jamais laquelle des deux causes
+              s'applique — le dire désignerait les comptes existants. Mais
+              l'exigence, elle, peut être affichée en permanence : un compte
+              valide sans le rôle `admin` est refusé exactement comme un mot de
+              passe erroné, et rien ne le laissait deviner. */}
+          <p className="mt-6 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
+            L&apos;accès est réservé aux comptes de la marketplace portant le
+            rôle <span className="font-medium text-foreground">administrateur</span>.
+            Un compte valide qui ne l&apos;a pas est refusé de la même manière
+            qu&apos;un mot de passe erroné.
+          </p>
         </CardContent>
       </Card>
     </div>
