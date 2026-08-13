@@ -331,6 +331,30 @@ export interface ResultatPublication {
   url?: string
   deja_publie?: boolean
   publie?: boolean
+  /** La page répond-elle déjà ? Voir `pageRepond`. */
+  page_en_ligne?: boolean
+}
+
+/**
+ * La page publique répond-elle vraiment ?
+ *
+ * Le site est en ISR (`revalidate = 1800`) : une URL visitée pendant que
+ * l'article était encore brouillon a mis un **404 en cache**, et ce 404
+ * survivra jusqu'à une demi-heure après la publication. Annoncer « en ligne »
+ * sans vérifier revient à mentir, et à envoyer un post social vers une page
+ * introuvable — l'erreur exacte que la persona interdit.
+ */
+async function pageRepond(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -373,7 +397,14 @@ export async function publierArticle(slugBrut: string): Promise<ResultatPublicat
   const url = `https://www.moto-ecole-inris.fr/blog/${a.slug}`
 
   if (a.status === "published") {
-    return { slug: a.slug, titre: a.title, url, deja_publie: true, publie: true }
+    return {
+      slug: a.slug,
+      titre: a.title,
+      url,
+      deja_publie: true,
+      publie: true,
+      page_en_ligne: await pageRepond(url),
+    }
   }
 
   const aInspecter = [
@@ -403,5 +434,11 @@ export async function publierArticle(slugBrut: string): Promise<ResultatPublicat
     .eq("id", a.id)
   if (eMaj) throw new Error(`blog_posts update: ${eMaj.message}`)
 
-  return { slug: a.slug, titre: a.title, url, publie: true }
+  return {
+    slug: a.slug,
+    titre: a.title,
+    url,
+    publie: true,
+    page_en_ligne: await pageRepond(url),
+  }
 }

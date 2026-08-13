@@ -224,17 +224,35 @@ const toolHandlers: Record<string, ToolHandler> = {
       }
     }
 
+    // `page_en_ligne` vient d'un vrai appel HEAD sur l'URL publique. Le site
+    // est en ISR : une URL visitee pendant que l'article etait brouillon a mis
+    // un 404 en cache, qui survit jusqu'a une demi-heure apres la publication.
+    // Dire « en ligne » sans verifier enverrait le post social vers une page
+    // introuvable.
+    const attente =
+      "Le site met la page en cache : elle peut mettre jusqu'a 30 minutes a " +
+      "repondre, surtout si l'URL a ete visitee pendant qu'elle etait en " +
+      "brouillon. NE PROPOSE PAS le post social maintenant — attends, rappelle " +
+      "publier_article pour reverifier, et n'annonce la mise en ligne que " +
+      "lorsque page_en_ligne vaut true."
+
     if (res.deja_publie) {
-      return { ...res, lecture: `« ${res.titre} » etait deja en ligne : ${res.url}` }
+      return {
+        ...res,
+        lecture: res.page_en_ligne
+          ? `« ${res.titre} » etait deja en ligne, et la page repond : ${res.url}`
+          : `« ${res.titre} » est publie en base mais la page ne repond pas encore. ${attente}`,
+      }
     }
 
     return {
       ...res,
-      lecture:
-        `« ${res.titre} » est en ligne : ${res.url}. ` +
-        "La page repond immediatement ; la liste du blog et le plan du site se " +
-        "rafraichissent dans la demi-heure. Tu peux maintenant proposer le post " +
-        "social qui y renvoie.",
+      lecture: res.page_en_ligne
+        ? `« ${res.titre} » est en ligne et la page repond : ${res.url}. ` +
+          "La liste du blog se rafraichit dans la demi-heure. Tu peux proposer " +
+          "le post social qui y renvoie."
+        : `« ${res.titre} » est passe en publie, mais la page ne repond pas ` +
+          `encore (${res.url}). ${attente}`,
     }
   },
 

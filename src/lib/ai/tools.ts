@@ -227,7 +227,13 @@ export const MAYA_TOOLS: Anthropic.Tool[] = [
       "de ta propre initiative. " +
       "L'outil refuse la mise en ligne si le texte enfreint une interdiction absolue, " +
       "même si l'article avait été accepté à la rédaction : il a pu être retouché " +
-      "dans l'admin depuis.",
+      "dans l'admin depuis. " +
+      "Le retour porte `page_en_ligne` : c'est le résultat d'un vrai appel sur l'URL " +
+      "publique. Le site met ses pages en cache, et une URL visitée pendant que " +
+      "l'article était en brouillon peut répondre 404 jusqu'à 30 minutes après la " +
+      "publication. N'annonce la mise en ligne, et ne propose le post social, que si " +
+      "`page_en_ligne` vaut true. Sinon rappelle l'outil plus tard pour revérifier — " +
+      "il est sans effet sur un article déjà publié.",
     input_schema: {
       type: "object" as const,
       properties: {
