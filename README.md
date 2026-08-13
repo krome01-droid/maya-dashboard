@@ -132,7 +132,19 @@ Relevé dans la base, pas supposé :
   sans attendre quoi que ce soit côté Postiz. Instagram et LinkedIn restent des
   placeholders, désormais **inactifs** (voir ci-dessous).
 
-## Ce qui reste à faire avant la mise en service
+## En service depuis le 2026-08-13
+
+https://agent.moto-ecole-inris.fr/admin-maya — certificat Let's Encrypt émis,
+`maya-dashboard` et `maya-cron` `Up (healthy)`, chaîne éprouvée de bout en bout
+par `GET /api/cron/social-auto?review_only=1` : lecture `service_role`,
+rédaction, soumission acceptée par CROME OS, rien de publié.
+
+Connexion par un compte Supabase de la marketplace portant le rôle `admin` —
+`ADMIN_PASSWORD` est délibérément vide, ce qui désactive le compte de service
+local sans ouvrir de brèche (`authorize()` exige la variable non vide avant
+toute comparaison).
+
+## Le relevé de départ (conservé)
 
 1. **Poser une valeur dans les secrets, pas seulement le nom.** Au 2026-08-12,
    `NEXTAUTH_SECRET`, `ADMIN_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`,
@@ -150,11 +162,25 @@ Relevé dans la base, pas supposé :
    redevient privé, il lui faudra la portée `repo` — et ce sera un PAT
    **classique**, GHCR et cette action refusant les jetons à portée fine.
 4. Créer chez OVH l'enregistrement A `agent.moto-ecole-inris.fr` →
-   187.124.34.111. La route Traefik, elle, est déjà en place.
+   187.124.34.111. La route Traefik, elle, est déjà en place. **Fait le
+   2026-08-13.**
 5. Éprouver la chaîne sans rien rendre public :
-   `GET /admin-maya/api/cron/social-auto?review_only=1`.
+   `GET /admin-maya/api/cron/social-auto?review_only=1`. **Fait le 2026-08-13.**
 
 Facebook étant déjà branché, rien n'est bloqué côté Postiz.
+
+### Deux pièges rencontrés en posant les secrets, à ne pas réapprendre
+
+**Un secret vide ressemble en tout point à un secret correct.** Ni
+`gh secret list` ni l'interface web n'affichent une valeur — l'interface propose
+un crayon « Update », jamais une lecture. `gh secret set` sur une entrée
+standard vide crée le secret sans broncher et affiche `✓ Set Actions secret`.
+
+**Un collage peut se dédoubler.** `SUPABASE_SERVICE_ROLE_KEY` est arrivée à 438
+caractères, soit deux JWT bout à bout — invalide, et invisible à l'œil dans un
+champ de mot de passe. D'où le comptage des points dans `diag-secrets` : un JWT
+en compte 2, quatre trahit un doublon. Ouvrir la page d'édition (le champ y
+repart vide), faire ⌘A puis ⌘V, une seule fois.
 
 ## Instagram et LinkedIn : ne pas armer le palier avant l'identifiant
 
