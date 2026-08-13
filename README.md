@@ -25,6 +25,44 @@ sessions et les commandes appartiennent au portail école et au webhook Stripe ;
 lui donner de quoi les écrire créerait deux chemins d'écriture concurrents sur
 des réservations payées.
 
+## Rédaction d'articles : la stratégie et son garde-fou
+
+Article de fond → appel à l'action vers une formation → post social qui renvoie
+à l'article. L'article porte le référencement et dure ; le post n'amène du
+monde que deux jours.
+
+`create_blog_article` dépose un **brouillon** dans `blog_posts` — jamais un
+article publié. Même règle que pour les réseaux : MAYA propose, Armel publie
+depuis l'admin du site. Un article public engage la marque plus durablement
+qu'un post et reste indexé longtemps après qu'on l'a oublié.
+
+**Les règles de la persona sont revérifiées en code** dans `lib/seo/article.ts`,
+avant toute écriture. Ce n'est pas de la redondance. L'article
+`permis-moto-accelere-2026`, publié avant MAYA, écrit « Chez INRI'S, nous
+proposons des stages intensifs dans nos 13 centres » : la plateforme n'est pas
+l'école, et il y a 14 centres actifs. Deux fautes en une phrase, qu'aucune
+consigne de prompt n'a empêchées.
+
+Bloquent l'écriture : CPF, « permis à 1 € », « nos moniteurs », promesse de
+résultat, « prix tout compris », script ou gestionnaire d'événement dans le HTML
+(le contenu part en `dangerouslySetInnerHTML`), moins de 900 mots, moins de
+3 `<h2>`, moins de 3 questions en FAQ, aucun lien interne, slug déjà pris,
+rubrique inconnue. Le refus intervient **avant** l'insertion et n'écrit rien.
+
+Ne sont que des réserves les points qui limitent le référencement sans faire
+mentir la marque — bloquer à 1 100 mots au lieu de 1 400 ferait boucler le
+modèle sans rien gagner.
+
+Le seuil de 900 mots n'est pas arbitraire : les sept articles en ligne font 150
+à 320 mots, aucun n'a de `meta_description` ni de FAQ.
+
+### Ce qui manque côté site
+
+`faq_data` est enregistré mais **jamais rendu** : ni bloc visible, ni JSON-LD
+`FAQPage`. Le `views/BlogPost.tsx` n'émet qu'un schéma `Article`. Tant que ce
+n'est pas corrigé dans `moto-ecole-inris`, la moitié GEO du travail de MAYA
+reste invisible des moteurs de réponse.
+
 ## Deux règles métier verrouillées dans la persona
 
 1. **La plateforme est un intermédiaire de réservation**, pas une moto-école.
