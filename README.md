@@ -92,6 +92,16 @@ rédaction a pu être retouché dans l'admin, et c'est la mise en ligne qui expo
 Les critères de longueur et de structure, eux, ne le sont pas — ils ne limitent
 que le référencement.
 
+**La couverture est obligatoire, et son URL est vérifiée.** Sans image, la carte
+de l'article s'affiche vide dans la liste du blog et le lien partagé n'a aucun
+aperçu. Mais valider la *forme* de l'URL ne suffit pas : le 2026-08-13 MAYA a
+passé `https://cdn.crome-os.io/visuals/inris/permis_A2_16x9.jpg` — plausible,
+bien formée, entièrement inventée, sur un domaine qui ne résout pas. Le studio
+publie en réalité sur le stockage Supabase de CROME OS. `illustrer_article` et
+`create_blog_article` vont donc **chercher l'image** et vérifient son
+`content-type` avant d'écrire. Une couverture cassée est pire que pas de
+couverture.
+
 **« Publié » ne veut pas dire « la page répond ».** Le site est en ISR : une URL
 visitée pendant que l'article était en brouillon garde son 404 en cache. Observé
 en production le 2026-08-13 — `status = published` en base, `HTTP 404` avec
