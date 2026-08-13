@@ -48,6 +48,33 @@ Les routes `/api/` répondent **401** quand la session a expiré, au lieu de
 rediriger vers la page de connexion : une redirection renvoyait au `fetch` du
 HTML avec un statut 200, et le client concluait à un historique vide.
 
+## Deux mémoires, à ne pas confondre
+
+`maya_conversations` retient **ce qui a été dit** : on rouvre une conversation,
+on la retrouve. Elle ne traverse pas d'une conversation à l'autre.
+
+`maya_faits` retient **ce qui doit continuer de s'appliquer** — « désormais, pas
+de deux-points dans les titres ». Ces consignes sont réinjectées dans le prompt
+à chaque échange, chat **et** tâche planifiée. C'est sans surveillance qu'elles
+comptent le plus : `social-auto` part sans relecture.
+
+Trois garde-fous, chacun contre une dérive prévisible :
+
+- **La clé fait foi.** Réécrire `ton-des-titres` remplace la consigne au lieu
+  d'en empiler une variante. Deux consignes contradictoires dans un prompt, et
+  le modèle tranche au hasard.
+- **Plafond de 30, avec refus explicite** plutôt qu'un rognage silencieux.
+  Chaque consigne occupe le prompt à chaque échange.
+- **Refus des données périssables.** « 14 centres », un tarif, « cette
+  semaine » : ces valeurs se lisent par les outils à chaque fois. Les mémoriser
+  fabriquerait une source concurrente qui vieillirait sans que personne pense à
+  la vérifier. Éprouvé le 2026-08-13 : MAYA a accepté la consigne de style et
+  refusé le nombre de centres, en expliquant pourquoi.
+
+Le panneau **Paramètres → Consignes durables** les affiche et permet de les
+retirer. Une mémoire qu'on ne peut pas relire est une mémoire qu'on ne peut pas
+corriger.
+
 ## Rédaction d'articles : la stratégie et son garde-fou
 
 Article de fond → appel à l'action vers une formation → post social qui renvoie
