@@ -201,7 +201,13 @@ export const MAYA_TOOLS: Anthropic.Tool[] = [
         },
         departement_cible: { type: "string", description: "Département visé, le cas échéant." },
         region_cible: { type: "string", description: "Région visée, le cas échéant." },
-        image_url: { type: "string", description: "URL de l'image de couverture (celle de generate_visual convient)." },
+        image_url: {
+          type: "string",
+          description:
+            "OBLIGATOIRE. L'URL exacte rendue par generate_visual, recopiée telle " +
+            "quelle. L'article est refusé si elle est absente ou si l'image ne " +
+            "répond pas.",
+        },
         image_alt: {
           type: "string",
           description: "Texte alternatif décrivant l'image. Obligatoire dès qu'une image est fournie.",
@@ -230,7 +236,11 @@ export const MAYA_TOOLS: Anthropic.Tool[] = [
         slug: { type: "string", description: "Slug de l'article." },
         image_url: {
           type: "string",
-          description: "URL http(s) complète, généralement celle rendue par generate_visual.",
+          description:
+            "L'URL EXACTE rendue par generate_visual, recopiée telle quelle. " +
+            "Ne la reconstruis jamais de mémoire : le studio publie sur le stockage " +
+            "Supabase de CROME OS, pas sur le domaine que tu supposerais. L'outil va " +
+            "chercher l'image et refuse si elle n'existe pas.",
         },
         image_alt: {
           type: "string",

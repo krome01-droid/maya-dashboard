@@ -257,6 +257,17 @@ export async function creerArticleBrouillon(a: ArticleEntrant): Promise<ArticleC
   const slug = a.slug ? slugifier(a.slug) : slugifier(a.titre)
   const mots = compterMots(a.contenu_html)
 
+  // Même contrôle qu'à l'illustration : une couverture inventée passerait le
+  // validateur (qui ne juge que la forme) et l'article naîtrait cassé.
+  if (a.image_url) {
+    const souci = await imageAccessible(a.image_url)
+    if (souci) {
+      throw new Error(
+        `Image refusée : ${souci}. Reprends l'URL exacte rendue par generate_visual.`,
+      )
+    }
+  }
+
   const { data: categorie, error: eCat } = await db
     .from("blog_categories")
     .select("id")
@@ -443,6 +454,30 @@ export async function publierArticle(slugBrut: string): Promise<ResultatPublicat
   }
 }
 
+/**
+ * L'URL désigne-t-elle vraiment une image accessible ?
+ *
+ * Vérifié le 2026-08-13 : MAYA a passé
+ * `https://cdn.crome-os.io/visuals/inris/permis_A2_16x9.jpg` — une adresse
+ * plausible, bien formée, et entièrement inventée. Le domaine ne résout même
+ * pas. Le studio publie en réalité sur le stockage Supabase de CROME OS.
+ *
+ * Contrôler la forme ne suffisait donc pas : un article s'est retrouvé en
+ * ligne avec une couverture cassée, ce qui est pire que pas de couverture du
+ * tout. On va chercher l'image, et on regarde son type.
+ */
+async function imageAccessible(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(12_000) })
+    if (!res.ok) return `l'URL répond ${res.status}`
+    const type = res.headers.get("content-type") ?? ""
+    if (!type.startsWith("image/")) return `l'URL renvoie « ${type || "aucun type"} », pas une image`
+    return null
+  } catch (e) {
+    return `l'URL est injoignable (${e instanceof Error ? e.message : "erreur"})`
+  }
+}
+
 export interface ResultatIllustration {
   slug: string
   titre: string
@@ -478,6 +513,14 @@ export async function illustrerArticle(
   if (alt.length < 10) {
     throw new Error(
       "Le texte alternatif doit décrire l'image en une phrase (10 caractères minimum).",
+    )
+  }
+
+  const souci = await imageAccessible(url)
+  if (souci) {
+    throw new Error(
+      `Image refusée : ${souci}. Reprends l'URL exacte rendue par generate_visual — ` +
+        "ne la reconstruis pas de mémoire, le studio ne publie pas sur le domaine que tu supposes.",
     )
   }
 
