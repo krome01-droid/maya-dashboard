@@ -224,6 +224,109 @@ export const MAYA_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "reecrire_article",
+    description:
+      "Réécrit un article EXISTANT en conservant son URL. C'est l'outil des " +
+      "articles hérités : ceux d'avant MAYA font 109 à 320 mots, sans " +
+      "meta_description ni FAQ, et plusieurs enfreignent la règle d'intermédiaire. " +
+      "Le slug ne change pas — créer une nouvelle URL perdrait l'autorité acquise " +
+      "et laisserait la page fautive en ligne. " +
+      "Mêmes exigences qu'à la rédaction : 900 mots minimum, 3 <h2>, 3 questions " +
+      "en FAQ, un lien interne, une couverture. Le statut est conservé : un " +
+      "article publié reste publié, la correction est donc immédiatement visible. " +
+      "Tu ne relis pas l'ancien texte : il est fautif, c'est pour cela qu'on le " +
+      "remplace. Repars des données réelles (get_formations, get_centres) et du " +
+      "sujet que porte le slug. Demande confirmation à Armel avant l'appel.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        titre: {
+          type: "string",
+          description: "Titre de l'article, 25 à 75 caractères. Sert de H1 sur la page.",
+        },
+        slug: {
+          type: "string",
+          description:
+            "Slug EXACT de l'article à réécrire, tel qu'il figure dans " +
+            "get_contexte_blog. Il ne change pas : c'est l'URL qu'on conserve.",
+        },
+        meta_title: {
+          type: "string",
+          description: "Titre pour les résultats de recherche, 60 caractères maximum. Défaut : le titre.",
+        },
+        meta_description: {
+          type: "string",
+          description:
+            "Description pour les résultats de recherche, 110 à 158 caractères. " +
+            "Doit contenir la requête visée et une raison de cliquer.",
+        },
+        excerpt: {
+          type: "string",
+          description: "Chapeau affiché dans la liste des articles, 80 à 220 caractères.",
+        },
+        contenu_html: {
+          type: "string",
+          description:
+            "Corps en HTML sémantique : <h2>, <h3>, <p>, <ul>, <table>, <strong>, <a>. " +
+            "Aucun <h1>, aucun <script>, aucun style en ligne. 900 mots minimum, 1400 conseillés.",
+        },
+        mots_cles: {
+          type: "array",
+          items: { type: "string" },
+          description: "Requêtes visées, la principale en premier.",
+        },
+        faq: {
+          type: "array",
+          description:
+            "Au moins 3 questions. C'est ce bloc que les moteurs de réponse citent : " +
+            "chaque réponse doit se suffire hors contexte, 120 caractères minimum.",
+          items: {
+            type: "object",
+            properties: {
+              question: { type: "string", description: "Question complète, terminée par « ? »." },
+              reponse: { type: "string", description: "Réponse autonome et factuelle." },
+            },
+            required: ["question", "reponse"],
+          },
+        },
+        categorie_slug: {
+          type: "string",
+          description: "Slug d'une rubrique renvoyée par get_contexte_blog.",
+        },
+        ville_cible: {
+          type: "string",
+          description:
+            "Ville visée, pour un article local. Ne la renseigner que si le contenu " +
+            "parle réellement de cette ville et qu'un centre du réseau s'y trouve.",
+        },
+        departement_cible: { type: "string", description: "Département visé, le cas échéant." },
+        region_cible: { type: "string", description: "Région visée, le cas échéant." },
+        image_url: {
+          type: "string",
+          description:
+            "OBLIGATOIRE. L'URL exacte rendue par generate_visual, recopiée telle " +
+            "quelle. L'article est refusé si elle est absente ou si l'image ne " +
+            "répond pas.",
+        },
+        image_alt: {
+          type: "string",
+          description: "Texte alternatif décrivant l'image. Obligatoire dès qu'une image est fournie.",
+        },
+      },
+      required: [
+        "slug",
+        "titre",
+        "meta_description",
+        "excerpt",
+        "contenu_html",
+        "faq",
+        "categorie_slug",
+        "image_url",
+        "image_alt",
+      ],
+    },
+  },
+  {
     name: "illustrer_article",
     description:
       "Attache une image de couverture à un article existant. Sert à corriger un " +

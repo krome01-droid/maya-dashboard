@@ -25,6 +25,7 @@ import {
   tempsLecture,
   texteNu,
   verifierInterdits,
+  verifierArticle,
   type ArticleEntrant,
 } from "@/lib/seo/article"
 
@@ -551,5 +552,140 @@ export async function illustrerArticle(
     titre: a.title,
     image_url: url,
     deja_illustre: Boolean(a.cover_image),
+  }
+}
+
+export interface ResultatReecriture {
+  refuse?: boolean
+  blocages?: string[]
+  reserves?: string[]
+  slug: string
+  titre?: string
+  url?: string
+  mots_avant?: number
+  mots_apres?: number
+  etait_publie?: boolean
+}
+
+/**
+ * Réécrit un article existant, en conservant son URL.
+ *
+ * Le slug ne bouge pas, et c'est tout l'intérêt : les sept articles hérités
+ * font 109 à 320 mots, sans meta_description ni FAQ, et cinq d'entre eux
+ * écrivent « Chez INRI'S, nous proposons… dans nos 13 centres ». Les remplacer
+ * par de nouvelles URL perdrait le peu d'autorité accumulée et laisserait
+ * sept pages fautives en ligne ; les réécrire en place corrige le contenu sans
+ * casser un seul lien.
+ *
+ * Le statut est conservé : un article publié le reste, un brouillon aussi. Une
+ * réécriture n'est pas une publication — si Armel veut mettre en ligne un
+ * brouillon réécrit, il passe par `publier_article`.
+ *
+ * `published_at` n'est jamais retouché : la date d'origine est la vraie date
+ * de parution, et la réécriture se lit dans `updated_at`.
+ */
+export async function reecrireArticle(
+  slugCible: string,
+  a: ArticleEntrant,
+): Promise<ResultatReecriture> {
+  const db = supabaseAdmin()
+  const slug = slugifier(slugCible)
+
+  const { data, error } = await db
+    .from("blog_posts")
+    .select("id, slug, title, status, word_count")
+    .eq("slug", slug)
+    .maybeSingle()
+  if (error) throw new Error(`blog_posts: ${error.message}`)
+  if (!data) throw new Error(`Aucun article sous le slug « ${slug} ».`)
+
+  const existant = data as {
+    id: string
+    slug: string
+    title: string
+    status: string | null
+    word_count: number | null
+  }
+
+  const [rubriques, tous] = await Promise.all([getCategoriesBlog(), getSlugsArticles()])
+  const verdict = verifierArticle(
+    { ...a, slug },
+    {
+      // On retire le slug visé de la liste des slugs pris : c'est celui qu'on
+      // réécrit, il ne peut pas se faire concurrence à lui-même.
+      slugsExistants: tous.map((x) => x.slug).filter((s) => s !== slug),
+      categoriesConnues: rubriques.map((r) => r.slug),
+    },
+  )
+  if (verdict.blocages.length) {
+    return { refuse: true, blocages: verdict.blocages, reserves: verdict.reserves, slug }
+  }
+
+  if (a.image_url) {
+    const souci = await imageAccessible(a.image_url)
+    if (souci) {
+      throw new Error(
+        `Image refusée : ${souci}. Reprends l'URL exacte rendue par generate_visual.`,
+      )
+    }
+  }
+
+  const { data: categorie, error: eCat } = await db
+    .from("blog_categories")
+    .select("id")
+    .eq("slug", a.categorie_slug)
+    .maybeSingle()
+  if (eCat) throw new Error(`blog_categories: ${eCat.message}`)
+  if (!categorie) throw new Error(`Catégorie « ${a.categorie_slug} » introuvable.`)
+
+  const faq = (a.faq ?? []).map((q) => ({
+    question: q.question.trim(),
+    reponse: q.reponse.trim(),
+  }))
+
+  const champs: Record<string, unknown> = {
+    title: a.titre,
+    excerpt: a.excerpt,
+    content: a.contenu_html,
+    meta_title: a.meta_title?.trim() || a.titre,
+    meta_description: a.meta_description,
+    meta_keywords: a.mots_cles?.length ? a.mots_cles.join(", ") : null,
+    canonical_url: `https://www.moto-ecole-inris.fr/blog/${slug}`,
+    target_city: a.ville_cible ?? null,
+    target_department: a.departement_cible ?? null,
+    target_region: a.region_cible ?? null,
+    category_id: (categorie as { id: string }).id,
+    schema_type: "Article",
+    faq_data: faq.length ? faq : null,
+  }
+  // On ne remplace la couverture que si une nouvelle est fournie : effacer
+  // celle qui existe parce que le modèle a omis le champ serait une régression
+  // silencieuse.
+  if (a.image_url) {
+    champs.cover_image = a.image_url
+    champs.featured_image = a.image_url
+    champs.og_image = a.image_url
+  }
+  if (a.image_alt) {
+    champs.cover_image_alt = a.image_alt
+    champs.featured_image_alt = a.image_alt
+  }
+
+  const { data: apres, error: eMaj } = await db
+    .from("blog_posts")
+    .update(champs)
+    .eq("id", existant.id)
+    .select("word_count")
+    .single()
+  if (eMaj) throw new Error(`blog_posts update: ${eMaj.message}`)
+
+  return {
+    slug,
+    titre: a.titre,
+    url: `https://www.moto-ecole-inris.fr/blog/${slug}`,
+    mots_avant: existant.word_count ?? 0,
+    mots_apres: (apres as { word_count: number | null }).word_count ?? compterMots(a.contenu_html),
+    etait_publie: existant.status === "published",
+    reserves: verdict.reserves,
   }
 }

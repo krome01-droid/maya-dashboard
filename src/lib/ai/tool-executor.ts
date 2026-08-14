@@ -9,6 +9,7 @@ import {
   getSlugsArticles,
   creerArticleBrouillon,
   publierArticle,
+  reecrireArticle,
   illustrerArticle,
 } from "@/lib/supabase/queries"
 import { fetchScenes, requestImage, submitPost, isCromeConfigured } from "@/lib/crome/client"
@@ -33,6 +34,31 @@ const PAGES_DE_SERVICE: { chemin: string; usage: string }[] = [
   { chemin: "/formation-moto-entreprise", usage: "Offre entreprise." },
   { chemin: "/nos-centres", usage: "Carte des centres — cible d'un article local." },
 ]
+
+/** Convertit les entrees brutes du modele en article typé. */
+function articleDepuisEntree(input: Record<string, unknown>): ArticleEntrant {
+  return {
+    titre: String(input.titre ?? "").trim(),
+    slug: input.slug ? String(input.slug) : undefined,
+    meta_title: input.meta_title ? String(input.meta_title) : undefined,
+    meta_description: String(input.meta_description ?? "").trim(),
+    excerpt: String(input.excerpt ?? "").trim(),
+    contenu_html: String(input.contenu_html ?? "").trim(),
+    mots_cles: Array.isArray(input.mots_cles) ? input.mots_cles.map(String) : [],
+    faq: Array.isArray(input.faq)
+      ? (input.faq as Record<string, unknown>[]).map((q) => ({
+          question: String(q?.question ?? ""),
+          reponse: String(q?.reponse ?? ""),
+        }))
+      : [],
+    categorie_slug: String(input.categorie_slug ?? "").trim(),
+    ville_cible: input.ville_cible ? String(input.ville_cible) : undefined,
+    departement_cible: input.departement_cible ? String(input.departement_cible) : undefined,
+    region_cible: input.region_cible ? String(input.region_cible) : undefined,
+    image_url: input.image_url ? String(input.image_url) : undefined,
+    image_alt: input.image_alt ? String(input.image_alt) : undefined,
+  }
+}
 
 type ToolHandler = (input: Record<string, unknown>) => Promise<unknown>
 
@@ -209,6 +235,32 @@ const toolHandlers: Record<string, ToolHandler> = {
         `Armel le relit et le publie depuis ${cree.url_admin}. ` +
         `Ne propose le post social de promotion qu'une fois l'article publié — ` +
         `un lien vers un brouillon renvoie sur une page introuvable.`,
+    }
+  },
+
+  async reecrire_article(input) {
+    const res = await reecrireArticle(String(input.slug ?? ""), articleDepuisEntree(input))
+
+    if (res.refuse) {
+      return {
+        refuse: true,
+        blocages: res.blocages,
+        reserves: res.reserves,
+        lecture:
+          "L'ancien texte est intact — rien n'a ete ecrase. Corrige les points " +
+          "ci-dessus et rappelle reecrire_article avec l'article entier.",
+      }
+    }
+
+    return {
+      ...res,
+      lecture:
+        `« ${res.titre} » reecrit : ${res.mots_avant} mots avant, ${res.mots_apres} apres. ` +
+        `L'URL n'a pas bouge (${res.url}). ` +
+        (res.etait_publie
+          ? "L'article etait publie : la correction est deja en ligne, le cache met " +
+            "environ deux minutes a se rafraichir."
+          : "L'article reste en brouillon — utilise publier_article pour le mettre en ligne."),
     }
   },
 
