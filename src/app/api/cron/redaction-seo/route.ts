@@ -4,7 +4,7 @@ import {
   creerArticleBrouillon,
   publierArticle,
 } from "@/lib/supabase/queries"
-import { verifierArticle, type ArticleEntrant } from "@/lib/seo/article"
+import { verifierArticle, BORNES, type ArticleEntrant } from "@/lib/seo/article"
 import {
   requestArticle,
   requestImage,
@@ -74,6 +74,76 @@ function echapper(s: string): string {
 }
 
 /**
+ * Rogne un titre à la borne du meta title, sans couper un mot en deux.
+ *
+ * `BORNES.metaTitleMax` vaut 60 alors que le moteur écrit des H1 de 55 à 65 :
+ * les deux contraintes sont justes et différentes, l'une pour la page, l'autre
+ * pour la ligne bleue des résultats. Le contrôle de MAYA bloquait sur les cinq
+ * caractères d'écart.
+ */
+function titreCourt(titre: string, max: number): string {
+  const t = titre.trim()
+  if (t.length <= max) return t
+  const coupe = t.slice(0, max)
+  const espace = coupe.lastIndexOf(" ")
+  return (espace > max * 0.6 ? coupe.slice(0, espace) : coupe).replace(/[\s,;:–—-]+$/, "")
+}
+
+/** Mots significatifs d'un texte, pour rapprocher deux sujets. */
+function motsUtiles(texte: string): Set<string> {
+  const vides = new Set([
+    "pour", "avec", "dans", "les", "des", "une", "sur", "par", "que", "qui", "aux",
+    "son", "ses", "est", "sont", "plus", "tout", "tous", "comment", "quel", "quelle",
+    "faut", "vous", "votre", "peut", "moto", "permis",
+  ])
+  return new Set(
+    texte
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .split(/[^a-z0-9]+/)
+      .filter((m) => m.length > 3 && !vides.has(m)),
+  )
+}
+
+/**
+ * Construit le maillage interne, que le contrôle de marque exige — « c'est la
+ * moitié de la stratégie », dit son message de refus, et il a raison : un
+ * article qui ne conduit nulle part ne sert qu'à être lu une fois.
+ *
+ * Le moteur central rend des SUGGESTIONS de liens (une ancre, une intention),
+ * pas des adresses : il ne connaît pas ce site. On les résout ici, contre les
+ * articles réellement publiés, en rapprochant les sujets par leurs mots
+ * significatifs. `/formations` est toujours ajouté : c'est la page de service
+ * vers laquelle un article doit conduire, et son existence est vérifiée.
+ */
+function maillage(
+  a: ArticleRedige,
+  publies: { slug: string; titre: string }[],
+): string {
+  const sujet = motsUtiles(
+    [a.mot_cle_principal, ...a.mots_cles_secondaires, ...a.liens_internes.map((l) => `${l.ancre} ${l.intention}`)].join(" "),
+  )
+
+  const proches = publies
+    .map((art) => {
+      const communs = [...motsUtiles(art.titre)].filter((m) => sujet.has(m)).length
+      return { art, communs }
+    })
+    .filter((x) => x.communs > 0)
+    .sort((x, y) => y.communs - x.communs)
+    .slice(0, 3)
+
+  const liens = [
+    `<li><a href="/formations">Voir les formations moto du réseau</a></li>`,
+    ...proches.map(
+      (x) => `<li><a href="/blog/${x.art.slug}">${echapper(x.art.titre)}</a></li>`,
+    ),
+  ]
+  return `<h2>Pour aller plus loin</h2>\n<ul>${liens.join("")}</ul>`
+}
+
+/**
  * Assemble le HTML injecté dans la page.
  *
  * La réponse directe est en tête parce que c'est le passage qu'un moteur de
@@ -84,7 +154,7 @@ function echapper(s: string): string {
  * données structurées viennent de `faq_data` et de `schema_type`, que
  * `creerArticleBrouillon` renseigne pour le gabarit.
  */
-function assembler(a: ArticleRedige): string {
+function assembler(a: ArticleRedige, liens: string): string {
   const morceaux: string[] = [
     `<p class="reponse-directe"><strong>${echapper(a.reponse_directe)}</strong></p>`,
     `<p>${echapper(a.chapo)}</p>`,
@@ -104,6 +174,7 @@ function assembler(a: ArticleRedige): string {
       morceaux.push(`<h3>${echapper(q.question)}</h3>`, `<p>${echapper(q.reponse)}</p>`)
     }
   }
+  if (liens) morceaux.push(liens)
   return morceaux.join("\n")
 }
 
@@ -135,6 +206,9 @@ export async function GET(req: Request) {
     // chez LOU.
     const titres = articles.map((a) => a.titre)
     const slugsExistants = articles.map((a) => a.slug)
+    // On ne maille que vers ce qui est en ligne : un lien vers un brouillon
+    // mène à une page qui n'existe pas.
+    const publies = articles.filter((a) => a.status === "published")
     const categoriesConnues = categories.map((c) => c.slug)
 
     const rendu = await requestArticle({
@@ -157,12 +231,16 @@ export async function GET(req: Request) {
     const verdict = rendu.publication
     const categorie = choisirCategorie(article, categoriesConnues)
 
-    // Le visuel, avant la vérification : `creerArticleBrouillon` contrôle que
-    // l'URL répond, et un article sans couverture reste publiable.
+    // Le visuel, AVANT la vérification, et même en `dry_run` — contrairement aux
+    // trois autres agents. Chez MAYA la couverture n'est pas un bonus : son
+    // contrôle de marque refuse l'article sans elle, parce qu'un article sans
+    // couverture laisse une carte vide dans la liste du blog et un lien partagé
+    // sans aperçu. Un essai qui sauterait cette étape ne répéterait donc pas ce
+    // que fait la tâche, et c'est tout ce qu'on lui demande.
     let imageUrl: string | undefined
     let imageAlt: string | undefined
     let imageErreur: string | undefined
-    if (!dryRun) {
+    {
       const { scenes, formats } = await fetchCatalogue()
       const choisie = scenes.find((s) => s.key === article.scene_visuel)
       let media = await requestImage(choisie?.key, formatArticle(formats))
@@ -187,10 +265,13 @@ export async function GET(req: Request) {
     const entrant: ArticleEntrant = {
       titre: article.titre,
       slug: article.slug,
-      meta_title: article.titre,
+      meta_title: titreCourt(article.titre, BORNES.metaTitleMax),
       meta_description: article.meta_description,
-      excerpt: article.reponse_directe,
-      contenu_html: assembler(article),
+      // La méta description, pas la réponse directe : celle-ci fait 40 à 60
+      // mots, soit le triple de la borne haute de l'extrait. Elle reste en tête
+      // du corps, où elle sert de passage citable.
+      excerpt: article.meta_description,
+      contenu_html: assembler(article, maillage(article, publies)),
       mots_cles: article.mots_cles_secondaires,
       faq: article.faq,
       categorie_slug: categorie,
