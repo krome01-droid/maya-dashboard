@@ -10,3 +10,15 @@
 
 # Publication sociale — mardi, jeudi et samedi à 10h
 0 10 * * 2,4,6 /usr/local/bin/call-cron.sh social-auto
+
+# Rédaction d'un article SEO/GEO — Mardi et Jeudi à 6h.
+#
+# Même matin que `social-auto` (10h), mais quatre heures avant : l'article est
+# écrit puis relayé le jour même. L'inverse ferait tourner le relais sur un
+# stock qui s'épuise — c'est ce qui a rendu ANGÈLE muette pendant deux mois.
+#
+# 6h et non 7h : à cette heure-là ni LOU ni ANGÈLE ne sollicitent le studio.
+#
+# L'article part publié, sauf si le hub l'a retenu pour relecture ; dans ce cas
+# il reste en brouillon et le hub prévient par Telegram.
+0 6 * * 2,4 /usr/local/bin/call-cron.sh redaction-seo

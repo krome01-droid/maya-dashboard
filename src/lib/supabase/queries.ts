@@ -248,10 +248,13 @@ export interface ArticleCree {
 /**
  * Insère un article en **brouillon**.
  *
- * `status: "draft"` n'est pas un paramètre, et ne doit pas le devenir : MAYA
- * propose, elle ne publie pas — même règle que pour les réseaux sociaux. Un
- * article public engage la marque plus durablement qu'un post, et reste
- * indexé longtemps après qu'on l'a oublié.
+ * `status: "draft"` n'est pas un paramètre, et ne doit pas le devenir. La règle
+ * a changé de portée le 26/08/2026 sans changer de nature : Armel a décidé que
+ * MAYA publierait comme les trois autres marques, mais la mise en ligne reste
+ * un SECOND acte, `publierArticle`, qui rejoue les interdits sur l'article tel
+ * qu'il est au moment de paraître. Ce qui était refusé reste refusé — noyer une
+ * publication dans un booléen parmi quinze champs, qu'un modèle peut cocher par
+ * inadvertance.
  */
 export async function creerArticleBrouillon(a: ArticleEntrant): Promise<ArticleCree> {
   const db = supabaseAdmin()
@@ -376,6 +379,12 @@ async function pageRepond(url: string): Promise<boolean> {
  * indexée, citée, et reste des années. La noyer dans un paramètre booléen de
  * `creerArticleBrouillon` aurait fait dépendre une mise en ligne d'un champ
  * parmi quinze, qu'un modèle peut cocher par inadvertance.
+ *
+ * Depuis le 26/08/2026, l'appelant n'est plus seulement Armel : la tâche
+ * `redaction-seo` publie ici quand le moteur central n'a relevé aucune
+ * affirmation engageante. C'est un choix explicite d'Armel, pris en connaissance
+ * de la règle antérieure. Les interdits rejoués ci-dessous en sont d'autant plus
+ * la dernière porte — ils voient un texte qu'aucun humain n'a relu.
  *
  * Les interdictions sont rejouées ici. L'article a pu être retouché dans
  * l'admin depuis sa rédaction, et c'est la publication qui expose — pas le
