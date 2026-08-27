@@ -74,14 +74,21 @@ function echapper(s: string): string {
 }
 
 /**
- * Rogne un titre à la borne du meta title, sans couper un mot en deux.
+ * Rogne un texte à une borne de caractères, sans couper un mot en deux.
  *
- * `BORNES.metaTitleMax` vaut 60 alors que le moteur écrit des H1 de 55 à 65 :
- * les deux contraintes sont justes et différentes, l'une pour la page, l'autre
- * pour la ligne bleue des résultats. Le contrôle de MAYA bloquait sur les cinq
- * caractères d'écart.
+ * Sert au meta title ET à la meta description, pour la même raison : le moteur
+ * vise une longueur en mots, la garde de MAYA compte des caractères, et un
+ * rédacteur ne compte pas les caractères. `BORNES.metaTitleMax` vaut 60 quand le
+ * moteur écrit des H1 de 55 à 65 ; `metaDescMax` vaut 158 quand il vise 150 à
+ * 155. Les deux contraintes sont justes et différentes — l'une pour la page,
+ * l'autre pour la ligne bleue des résultats — et l'écart se rogne, il ne se
+ * négocie pas : sans cela un dépassement de DEUX caractères jette un article
+ * entier, ce qui est arrivé le 27/08/2026 sur une description de 160.
+ *
+ * On ne rogne que par le haut. Trop COURT reste un refus : rallonger
+ * demanderait d'inventer du texte, et c'est au rédacteur de le faire.
  */
-function titreCourt(titre: string, max: number): string {
+function raccourcir(titre: string, max: number): string {
   const t = titre.trim()
   if (t.length <= max) return t
   const coupe = t.slice(0, max)
@@ -272,12 +279,12 @@ export async function GET(req: Request) {
     const entrant: ArticleEntrant = {
       titre: article.titre,
       slug: article.slug,
-      meta_title: titreCourt(article.titre, BORNES.metaTitleMax),
-      meta_description: article.meta_description,
+      meta_title: raccourcir(article.titre, BORNES.metaTitleMax),
+      meta_description: raccourcir(article.meta_description, BORNES.metaDescMax),
       // La méta description, pas la réponse directe : celle-ci fait 40 à 60
       // mots, soit le triple de la borne haute de l'extrait. Elle reste en tête
       // du corps, où elle sert de passage citable.
-      excerpt: article.meta_description,
+      excerpt: raccourcir(article.meta_description, BORNES.metaDescMax),
       contenu_html: assembler(article, maillage(article, publies)),
       mots_cles: article.mots_cles_secondaires,
       faq: article.faq,
@@ -296,6 +303,10 @@ export async function GET(req: Request) {
           status: "refuse",
           step: "controle_maya",
           titre: article.titre,
+          // Un refus dit aussi ce qui a été produit avant lui : sans la scène ni
+          // l'état de la couverture, on ne sait pas si le refus PORTE sur elles.
+          scene: article.scene_visuel || null,
+          couverture: imageUrl ? "oui" : (imageErreur ?? "absente"),
           blocages: controle.blocages,
           reserves: controle.reserves,
         },
