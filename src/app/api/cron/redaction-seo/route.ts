@@ -211,12 +211,20 @@ export async function GET(req: Request) {
     const publies = articles.filter((a) => a.status === "published")
     const categoriesConnues = categories.map((c) => c.slug)
 
+    // Le catalogue du studio se lit AVANT la rédaction, et son résultat sert
+    // deux fois : le rédacteur choisit la scène qui montre ce dont il parle, et
+    // l'illustration réclame ensuite un format que la marque possède vraiment.
+    // Lu après, comme il l'était, `scene_visuel` ne pouvait que revenir vide et
+    // chaque article de la marque recevait la même scène par défaut.
+    const { scenes, formats } = await fetchCatalogue()
+
     const rendu = await requestArticle({
       sujet,
       mot_cle: motCleImpose,
       titres_existants: titres.slice(0, 60),
       longueur: LONGUEUR,
       forcer_relecture: forcerRelecture,
+      scenes,
     })
 
     if (rendu.error || !rendu.article || !rendu.publication) {
@@ -241,7 +249,6 @@ export async function GET(req: Request) {
     let imageAlt: string | undefined
     let imageErreur: string | undefined
     {
-      const { scenes, formats } = await fetchCatalogue()
       const choisie = scenes.find((s) => s.key === article.scene_visuel)
       let media = await requestImage(choisie?.key, formatArticle(formats))
       // L'attente du studio est bornée à 45 s et le format article la dépasse
@@ -306,6 +313,10 @@ export async function GET(req: Request) {
         categorie,
         mot_cle: article.mot_cle_principal,
         statut_conseille: verdict.statut_conseille,
+        // La scène retenue par le rédacteur. Vide = scène par défaut de la marque :
+        // c'est le signal que le catalogue n'a pas été lu ou qu'aucune scène ne
+        // collait, et non un détail cosmétique.
+        scene: article.scene_visuel || null,
         motif: verdict.motif,
         bloquants: verdict.bloquants,
         mineurs: verdict.mineurs,
@@ -347,6 +358,10 @@ export async function GET(req: Request) {
       mot_cle: article.mot_cle_principal,
       mots: cree.mots,
       statut_conseille: verdict.statut_conseille,
+      // La scène retenue par le rédacteur. Vide = scène par défaut de la marque :
+      // c'est le signal que le catalogue n'a pas été lu ou qu'aucune scène ne
+      // collait, et non un détail cosmétique.
+      scene: article.scene_visuel || null,
       motif: verdict.motif,
       bloquants: verdict.bloquants,
       mineurs: verdict.mineurs,
