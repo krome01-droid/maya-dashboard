@@ -68,12 +68,17 @@ const INTERDITS: { motif: RegExp; explication: string }[] = [
   {
     motif: /\bCPF\b|compte personnel de formation/i,
     explication:
-      "Le permis moto n'est pas éligible au CPF. Le mentionner, même pour le nier, expose à une réclamation.",
+      "Règle éditoriale : la plateforme ne parle pas de financement. Le CPF reste " +
+      "mobilisable sur A1/A2 sous conditions, mais elles changent et dépendent de " +
+      "l'école — la plateforme n'est pas l'organisme de formation et n'a rien à " +
+      "promettre là-dessus. Ne le mentionne pas, même pour le nier.",
   },
   {
     motif: /permis à 1\s*€|permis à un euro/i,
     explication:
-      "Le « permis à 1 € par jour » ne couvre pas les catégories moto.",
+      "Même règle éditoriale que le CPF. Le dispositif couvre bien A1 et A2, mais " +
+      "il suppose une école titulaire du label d'État, ce que la plateforme ne peut " +
+      "pas garantir école par école. Renvoie vers service-public.fr, n'en parle pas.",
   },
   {
     motif: /\bnotre moto-?école\b|\bnos moniteurs\b|\bnos formateurs\b|nous vous formons|\bnotre école\b/i,
